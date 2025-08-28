@@ -428,19 +428,10 @@ def plot_3d_point_cloud(fig, ax, point_cloud, max_num_persons, max_num_points, c
     ax.set_zlim([-1000, 1000])
     
 if __name__ == "__main__":
-    '''
-    Visualization only:
-        python data_collection.py --save_data 1 --vis_flag 1 --collection_duration 120 --save_path RawData/demo
-    Collecting dat
-        python data_collection.py --save_data 1 --sleep_time 0 --vis_flag 0 --enable_MLX 0 --mi08_process 0 --mi16_process 0 --collection_duration 120 --save_path RawData/vis2
-    '''
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--collection_duration", type=int, default=10, help="Duration to collect data, seconds")
-    parser.add_argument("--save_data", type=int, default=0, help="0: not save, just visualize, 1: save to a pickle file without visualization")
-    parser.add_argument("--save_path", type=str, default="data", help="path to save data")
+    parser.add_argument("--collection_duration", type=int, default=60, help="Duration to collect data, seconds")
     parser.add_argument("--sleep_time", type=float, default=0, help="sleep time between each frame")
-    parser.add_argument("--vis_flag", type=int, default=0, help="enable visualization or not")
     parser.add_argument("--enable_MLX", type=int, default=1, help="enable MLX or not")
     parser.add_argument("--mi08_process", type=int, default=0, help="enable postprocessing for mi08 or not")
     parser.add_argument("--mi16_process", type=int, default=0, help="enable postprocessing for mi16 or not")
@@ -452,19 +443,6 @@ if __name__ == "__main__":
     exp_config_file_name = args.exp_config_file + '.yaml'
     t2p = M08ToPtcloud('exp_configs', exp_config_file_name, args.weights)
     
-    args.save_path = "/media/zx/zx-data/" + args.save_path
-    if args.save_data:
-        if not os.path.exists(args.save_path):
-            os.makedirs(args.save_path)
-            os.makedirs(args.save_path + "/realsense_depth/")
-            os.makedirs(args.save_path + "/realsense_color/")
-            os.makedirs(args.save_path + "/seek_thermal/")
-            os.makedirs(args.save_path + "/MLX/")
-            os.makedirs(args.save_path + "/senxor_m08/")
-            os.makedirs(args.save_path + "/senxor_m16/")
-        else:
-            print(f"The directory {args.save_path} already exists")
-            exit(1)
     
     if args.mi08_process:
         senxor_postprocess_m08 = senxor_postprocess()
@@ -548,58 +526,39 @@ if __name__ == "__main__":
             timestamp = time.time()
             
             # for visualization only
-            if args.vis_flag:
-                # visualize point cloud
-                ax.clear()
-                plot_3d_point_cloud(fig, ax, ptcloud.cpu().numpy(), 6, 1000)
-                fig.canvas.draw()
-                fig.canvas.flush_events()
-                image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
-                image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-                image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-                # plt.show()
-                # rescale image such that its width is 960, and its height-width ration remains unchanged
-                image = cv2.resize(image, (960, int(960 * image.shape[0] / image.shape[1])))
-                
-                # visualize realsense
-                realsense_depth_image = cv2.applyColorMap(cv2.convertScaleAbs(realsense_depth_image, alpha=0.03), cv2.COLORMAP_JET)
-                realsense_depth_image = cv2.resize(realsense_depth_image, (320, 240))  
-                realsense_color_image = cv2.resize(realsense_color_image, (320, 240), interpolation=cv2.INTER_NEAREST)
-                
-                # visualize m08
-                m08_min = -1024
-                m08_max = -1024
-                m08_min = np.min(senxor_temperature_map_m08)
-                m08_max = np.max(senxor_temperature_map_m08)
-                senxor_temperature_map_m08 = senxor_temperature_map_m08.astype(np.uint8)
-                senxor_temperature_map_m08 = cv2.normalize(senxor_temperature_map_m08, None, 0, 255, cv2.NORM_MINMAX)
-                senxor_temperature_map_m08 = cv2.resize(senxor_temperature_map_m08, (320, 240), interpolation=cv2.INTER_NEAREST)
-                senxor_temperature_map_m08 = cv2.applyColorMap(senxor_temperature_map_m08, cv2.COLORMAP_JET)
-                put_temp(senxor_temperature_map_m08, m08_min, m08_max, "m08")
-                #print(realsense_depth_image.shape, realsense_color_image.shape, seek_camera_frame.shape,  senxor_temperature_map_m08.shape, MLX_temperature_map.shape,)
-                interm1 = np.concatenate((realsense_depth_image, realsense_color_image, senxor_temperature_map_m08), axis=1)
-                interm1 = np.concatenate((interm1, image), axis=0)
-                final_image = interm1
-                cv2.imshow("Final Image", final_image)
-                
-                # plt.pause(0.001)
-                # do we need to destroy the plot here?
-                # your answer: no, just overwrite it in the next loop
-                # thank you! :D
-                # plt.savefig("resultsPCD.pdf")
-                # please help convert the plot to an image such that I can show it with cv2.imshow()
-                # plt.close()
-                # plt.clf()
-                # plt.cla()
-                # fig = plt.figure()
-                # ax = fig.add_subplot(111, projection='3d')
-                # ax.scatter(ptcloud[:,0], ptcloud[:,1], ptcloud[:,2], c=ptcloud[:,2], cmap='jet')
-                # ax.set_xlabel('X')
-                # ax.set_ylabel('Y')
-                # ax.set_zlabel('Z')
-                # ax.set_xlim([-1000, 1000])
-                
-                
+            # if args.vis_flag:
+            # visualize point cloud
+            ax.clear()
+            plot_3d_point_cloud(fig, ax, ptcloud.cpu().numpy(), 6, 1000)
+            fig.canvas.draw()
+            fig.canvas.flush_events()
+            image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
+            image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+            # plt.show()
+            # rescale image such that its width is 960, and its height-width ration remains unchanged
+            image = cv2.resize(image, (960, int(960 * image.shape[0] / image.shape[1])))
+            
+            # visualize realsense
+            realsense_depth_image = cv2.applyColorMap(cv2.convertScaleAbs(realsense_depth_image, alpha=0.03), cv2.COLORMAP_JET)
+            realsense_depth_image = cv2.resize(realsense_depth_image, (320, 240))  
+            realsense_color_image = cv2.resize(realsense_color_image, (320, 240), interpolation=cv2.INTER_NEAREST)
+            
+            # visualize m08
+            m08_min = -1024
+            m08_max = -1024
+            m08_min = np.min(senxor_temperature_map_m08)
+            m08_max = np.max(senxor_temperature_map_m08)
+            senxor_temperature_map_m08 = senxor_temperature_map_m08.astype(np.uint8)
+            senxor_temperature_map_m08 = cv2.normalize(senxor_temperature_map_m08, None, 0, 255, cv2.NORM_MINMAX)
+            senxor_temperature_map_m08 = cv2.resize(senxor_temperature_map_m08, (320, 240), interpolation=cv2.INTER_NEAREST)
+            senxor_temperature_map_m08 = cv2.applyColorMap(senxor_temperature_map_m08, cv2.COLORMAP_JET)
+            put_temp(senxor_temperature_map_m08, m08_min, m08_max, "m08")
+            #print(realsense_depth_image.shape, realsense_color_image.shape, seek_camera_frame.shape,  senxor_temperature_map_m08.shape, MLX_temperature_map.shape,)
+            interm1 = np.concatenate((realsense_depth_image, realsense_color_image, senxor_temperature_map_m08), axis=1)
+            interm1 = np.concatenate((interm1, image), axis=0)
+            final_image = interm1
+            cv2.imshow("Final Image", final_image)
                 
             time_lasting = time.time() - start_time
             if time_lasting > collection_duration:
@@ -628,14 +587,14 @@ if __name__ == "__main__":
                 #     pass
                 break
             #cv2.imshow("Realsense Color Image", realsense_color_image)
-            if args.save_data==0:
-                key = cv.waitKey(1)
-                if key in [ord("q"), ord('Q'), 27]:
-                    break
+            
+            key = cv.waitKey(1)
+            if key in [ord("q"), ord('Q'), 27]:
+                break
         
     senxor_sensor_m08.close()
 
     for i in range (5):
         print('\a')
         
-# python data_collection.py --save_data 0 --vis_flag 1 --exp_config_file model3_m08 --weights weights/m08/model3_m08_thermo_pt_0819203728.pth
+# python data_collection.py --save_data 0 --exp_config_file model3_m08 --weights weights/m08/model3_m08_thermo_pt_0819203728.pth
