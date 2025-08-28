@@ -401,8 +401,6 @@ def plot_3d_point_cloud(fig, ax, point_cloud, max_num_persons, max_num_points, c
         end_idx = start_idx + points_per_person
         
         indicator_idx = (person_idx + 1) * points_per_person - 1
-        #print(f"point_cloud shape: {point_cloud.shape}")
-        #print(f"point_cloud indicator point at point_cloud[0, {indicator_idx}]: {point_cloud[0, indicator_idx]}")
         indicator_point = point_cloud[0, indicator_idx]
         if indicator_point > threshold:
             # Get points for this person
@@ -446,22 +444,12 @@ if __name__ == "__main__":
     
     if args.mi08_process:
         senxor_postprocess_m08 = senxor_postprocess()
-    # if args.mi16_process:
-    #     senxor_postprocess_m16 = senxor_postprocess()
-    
+
     realsense_sensor = realsense()  
-    # seek_camera = seekthermal(data_format="others")
-    # if args.enable_MLX:
-    #     mlx_sensor = MLXSensor("/dev/ttyUSB0")
     senxor_sensor_m08 = senxor_16(sensor_port="/dev/ttyACM0") #beware! This may get flipped
-    # senxor_sensor_m16 = senxor_16(sensor_port="/dev/ttyACM1")
-    
 
-    # # to prevent flipping circumstances
-    # if senxor_sensor_m08.get_temperature_map_shape()[0] > senxor_sensor_m16.get_temperature_map_shape()[0]:
-    #     senxor_sensor_m08, senxor_sensor_m16 = senxor_sensor_m16, senxor_sensor_m08
-    #     #raise ValueError("The sensor ports are flipped. Please check the sensor ports")
-
+    # buffer for synchronizing different sensors
+    # since some sensors get data slower
     buffer_len = 3
 
     # seek_camera_buffer = image_buffer(buffer_len)
@@ -562,31 +550,14 @@ if __name__ == "__main__":
                 
             time_lasting = time.time() - start_time
             if time_lasting > collection_duration:
-                timestamp = time.time()
-                # print(f"Seek camera frame collected at {timestamp}", seek_camera_frame.shape)
-                print(f"Realsense depth and color image collected at {timestamp}", realsense_depth_image.shape, realsense_color_image.shape)
-                # print(f"MLX temperature map collected at {timestamp}", MLX_temperature_map.shape)
-                print(f"Senxor temperature map m08 collected at {timestamp}", senxor_temperature_map_m08.shape)
-                print(f"Total frames received: {framecnt}")
-                print(f'Total frames saved: {saved_frame_cnt}')
-                # print(f"Senxor temperature map m16 collected at {timestamp}", senxor_temperature_map_m16.shape)
-                print(f"Frame rate: {framecnt / time_lasting} Hz")
-
-                # save the above as metadata in meta.log in the save_path
-                # try:
-                #     with open(f"{args.save_path}/meta.log", "w") as f:
-                #         f.write(f"Collecting time: {time_lasting} seconds\n")
-                #         f.write(f"Total frames received: {framecnt}\n")
-                #         f.write(f'Total frames saved: {saved_frame_cnt}\n')
-                #         f.write(f"Frame rate: {framecnt / time_lasting} Hz\n")
-                #         f.write(f"Seek camera frame collected at {timestamp} {seek_camera_frame.shape}\n")
-                #         f.write(f"Realsense depth and color image collected at {timestamp} {realsense_depth_image.shape} {realsense_color_image.shape}\n")
-                #         f.write(f"MLX temperature map collected at {timestamp} {MLX_temperature_map.shape}\n")
-                #         f.write(f"Senxor temperature map m08 collected at {timestamp} {senxor_temperature_map_m08.shape}\n")
-                # except:
-                #     pass
                 break
-            #cv2.imshow("Realsense Color Image", realsense_color_image)
+                # timestamp = time.time()
+                # print(f"Realsense depth and color image collected at {timestamp}", realsense_depth_image.shape, realsense_color_image.shape)
+                # print(f"Senxor temperature map m08 collected at {timestamp}", senxor_temperature_map_m08.shape)
+            print(f"Total frames received: {framecnt}")
+            print(f"Frame rate: {framecnt / time_lasting} Hz")
+
+                #break
             
             key = cv.waitKey(1)
             if key in [ord("q"), ord('Q'), 27]:
