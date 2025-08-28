@@ -6,6 +6,9 @@ from sklearn.neighbors import NearestNeighbors
 import torch.nn as nn
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+import matplotlib
+matplotlib.use('TkAgg')
+
 
 class DepthMask2PointCloudFast(nn.Module):
     '''
@@ -201,6 +204,7 @@ def plot_3d_point_cloud(point_cloud, max_num_persons, max_num_points, camera_hei
         fig = plt.figure(figsize=(12, 8))
         ax = fig.add_subplot(111, projection='3d')
     # Define colormap for different users
+    ax.clear()
     def plot_camera(ax):
         camera_vertices = np.array([
             [-100, 100, -100], [100, 100, -100], [100, 100, 60], [-100, 100, 60],
@@ -266,6 +270,8 @@ def plot_3d_point_cloud(point_cloud, max_num_persons, max_num_points, camera_hei
             if len(x_valid) > 0:  # Only plot if there are valid points
                 scatter_ret = ax.scatter(x_valid, z_valid, y_valid,
                         label="", alpha=0.5, s=s, c="red")
+
+    
  
     # Set labels and title
     ax.set_xlabel('X (mm)')
