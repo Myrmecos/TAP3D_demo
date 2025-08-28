@@ -1,0 +1,39 @@
+task: 'the_task_name'
+init_rand_seed: 41
+tqdm_disable: True
+tensorboard_folder: 'runs/folder/'        
+trained_model_folder: 'weights/folder/'
+model_save_enable: False
+log_folder: 'logs/folder/'
+log_enable: True         
+cuda_index: 0
+
+
+num_epochs: 55
+early_stop: 15 # the number of epochs to stop the training if the validation loss does not decrease
+batch_size: 32
+num_workers: 16
+optimizer: 'AdamW' # 'AdamW', 'Lion' (https://github.com/lucidrains/lion-pytorch)
+lr: 0.0001    # adamW: 0.001, Lion: 0.0004 (3-10x smaller than that for AdamW)
+weight_decay: 0.0001 # adamW: 0.004, Lion: 0.01  (Lion is 3-10x larger than that for AdamW)
+momentum: 0.5
+
+criterion: 'selected_criterion' # corresponding to the label_type
+metric: 'selscted_metric'  # corresponding to the label_type
+detection_threshold: 0.5 # threshold for person detection confidence
+point_threshold: 10 # 10mm
+
+model_name: 'model_name'
+# details setting of the model: ....
+
+trainset_config_file: 'the config file name of trainset'
+testset_config_file: 'the config file name of testset'
+sensor_name: 'senxor_m16'
+max_num_points: 100
+max_num_persons: 5
+chunk_size: 1
+out_channels: 5
+init_features: 32
+
+preload: False
+label_type: 'depth_mask_3C'  
