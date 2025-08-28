@@ -504,7 +504,7 @@ if __name__ == "__main__":
     
     fig = plt.figure(figsize=(12, 8))
     ax = fig.add_subplot(111, projection='3d')
-    plt.show(block=False)
+    # plt.show(block=False)
 
     while True:
         #print("===========debug: start collecting data, frame:", framecnt, "================") 
@@ -549,6 +549,18 @@ if __name__ == "__main__":
             
             # for visualization only
             if args.vis_flag:
+                # visualize point cloud
+                ax.clear()
+                plot_3d_point_cloud(fig, ax, ptcloud.cpu().numpy(), 6, 1000)
+                fig.canvas.draw()
+                fig.canvas.flush_events()
+                image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
+                image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+                image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+                # plt.show()
+                # rescale image such that its width is 960, and its height-width ration remains unchanged
+                image = cv2.resize(image, (960, int(960 * image.shape[0] / image.shape[1])))
+                
                 # visualize realsense
                 realsense_depth_image = cv2.applyColorMap(cv2.convertScaleAbs(realsense_depth_image, alpha=0.03), cv2.COLORMAP_JET)
                 realsense_depth_image = cv2.resize(realsense_depth_image, (320, 240))  
@@ -566,15 +578,9 @@ if __name__ == "__main__":
                 put_temp(senxor_temperature_map_m08, m08_min, m08_max, "m08")
                 #print(realsense_depth_image.shape, realsense_color_image.shape, seek_camera_frame.shape,  senxor_temperature_map_m08.shape, MLX_temperature_map.shape,)
                 interm1 = np.concatenate((realsense_depth_image, realsense_color_image, senxor_temperature_map_m08), axis=1)
+                interm1 = np.concatenate((interm1, image), axis=0)
                 final_image = interm1
                 cv2.imshow("Final Image", final_image)
-
-                # visualize point cloud
-                ax.clear()
-                plot_3d_point_cloud(fig, ax, ptcloud.cpu().numpy(), 6, 1000)
-                fig.canvas.draw()
-                fig.canvas.flush_events()
-                # plt.show()
                 
                 # plt.pause(0.001)
                 # do we need to destroy the plot here?
