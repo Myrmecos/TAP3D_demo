@@ -15,6 +15,8 @@ import copy
 from inference_new import M08ToPtcloud, plot_3d_point_cloud
 import torch
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+import matplotlib
+matplotlib.use('Agg')  # Ensure Agg backend is set
 import matplotlib.pyplot as plt
 import logging
 logging.getLogger().setLevel(logging.CRITICAL)
@@ -433,6 +435,8 @@ if __name__ == "__main__":
     parser.add_argument("--enable_MLX", type=int, default=1, help="enable MLX or not")
     parser.add_argument("--mi08_process", type=int, default=0, help="enable postprocessing for mi08 or not")
     parser.add_argument("--mi16_process", type=int, default=0, help="enable postprocessing for mi16 or not")
+    parser.add_argument("--save", type=int, default=0, help="0 for not save, 1 for save")
+    parser.add_argument("--save_dest", type=str, default="data/temp", help="destination for saving image, thermal and depth maps")
 
     parser.add_argument("--exp_config_file", type=str, help="Configuration YAML file of the experiment")
     parser.add_argument("--weights", type=str, default=None, help="Path to .pth weights (optional)")
@@ -441,6 +445,14 @@ if __name__ == "__main__":
     exp_config_file_name = args.exp_config_file + '.yaml'
     t2p = M08ToPtcloud('exp_configs', exp_config_file_name, args.weights)
     
+    imgdest = os.path.join(args.save_dest, "realsense_color")
+    depthdest = os.path.join(args.save_dest, "realsense_depth")
+    m08dest = os.path.join(args.save_dest, "senxor_m08")
+    if args.save == 1 and not os.path.exists(args.save_dest):
+        os.mkdir(args.save_dest)
+        os.mkdir(imgdest)
+        os.mkdir(depthdest)
+        os.mkdir(m08dest)
     
     if args.mi08_process:
         senxor_postprocess_m08 = senxor_postprocess()
@@ -460,6 +472,7 @@ if __name__ == "__main__":
     num_rows_m08, num_cols_m08 = senxor_sensor_m08.get_temperature_map_shape()
     # num_rows_m16, num_cols_m16 = senxor_sensor_m16.get_temperature_map_shape()
 
+    print("Matplotlib backend:", matplotlib.get_backend())
     print("before collecting data=================================================")
     framecnt = 0   # the number of the received frames
     saved_frame_cnt = 0  # the number of the saved frames
@@ -503,6 +516,17 @@ if __name__ == "__main__":
             if args.mi08_process:
                 senxor_temperature_map_m08 = senxor_postprocess_m08.process_temperature_map(senxor_temperature_map_m08)
             
+            if args.save == 1:
+                # timestamp format: yyyymmddhhmmssffffff
+                timestampstr = time.strftime("%Y%m%d%H%M%S", time.localtime()) + f"{int((time.time()%1)*1e6):06d}"
+                npyname = timestampstr + ".npy"
+                imgpath = os.path.join(imgdest, npyname)
+                thermalpath = os.path.join(m08dest, npyname)
+                depthpath = os.path.join(depthdest, npyname)
+                np.save(imgpath, realsense_color_image)
+                np.save(depthpath, realsense_depth_image)
+                np.save(thermalpath, senxor_temperature_map_m08)
+                
             print("shape of m08:", senxor_temperature_map_m08.shape)
             thermal_images = np.expand_dims(senxor_temperature_map_m08, axis=0)
             thermal_images = np.expand_dims(thermal_images, axis=0)
@@ -519,7 +543,7 @@ if __name__ == "__main__":
             ax.clear()
             plot_3d_point_cloud(fig, ax, ptcloud.cpu().numpy(), 6, 1000)
             fig.canvas.draw()
-            fig.canvas.flush_events()
+            # fig.canvas.flush_events()
             image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
             image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
             image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)

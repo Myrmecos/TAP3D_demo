@@ -4,10 +4,11 @@ import torch
 from scipy.spatial import cKDTree
 from sklearn.neighbors import NearestNeighbors
 import torch.nn as nn
+import matplotlib
+matplotlib.use('Agg')  # Set the backend to Agg
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-import matplotlib
-matplotlib.use('TkAgg')
+
 
 
 class DepthMask2PointCloudFast(nn.Module):
