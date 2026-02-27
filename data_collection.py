@@ -445,6 +445,8 @@ if __name__ == "__main__":
     parser.add_argument("--exp_config_file", type=str, help="Configuration YAML file of the experiment")
     parser.add_argument("--weights", type=str, default=None, help="Path to .pth weights (optional)")
     parser.add_argument("--train", type=int, default="0", help="0 is test, 1 is train")
+    parser.add_argument("--thermal_input", type=str, default="m08", help="choose from m08, m16 and seek")
+    
     args = parser.parse_args()
     exp_config_file_name = args.exp_config_file + '.yaml'
     t2p = M08ToPtcloud('exp_configs', exp_config_file_name, args.weights)
@@ -452,38 +454,47 @@ if __name__ == "__main__":
     imgdest = os.path.join(args.save_dest, "realsense_color")
     depthdest = os.path.join(args.save_dest, "realsense_depth")
     m08dest = os.path.join(args.save_dest, "senxor_m08")
+    m16dest = os.path.join(args.save_dest, "senxor_m16")
     seekdest = os.path.join(args.save_dest, "seek_color")
     pointcloudoutputdest = os.path.join(args.save_dest, "pointcloud_output")
+    
+    thermal_input = args.thermal_input
+    
     if args.save == 1 and not os.path.exists(args.save_dest):
         os.mkdir(args.save_dest)
         os.mkdir(imgdest)
         os.mkdir(depthdest)
         os.mkdir(m08dest)
+        os.mkdir(m16dest)
         os.mkdir(pointcloudoutputdest)
         os.mkdir(seekdest)
 
-    if args.mi08_process:
-        senxor_postprocess_m08 = senxor_postprocess()
+    if args.mi08_process or args.mi16_process:
+        senxor_postprocess_m = senxor_postprocess()
 
     realsense_sensor = realsense()
     senxor_sensor_m08 = senxor_16(sensor_port="/dev/ttyACM0") #beware! This may get flipped
+    senxor_sensor_m16 = senxor_16(sensor_port="/dev/ttyACM1") #beware! This may get flipped
+    num_rows_m08, num_cols_m08 = senxor_sensor_m08.get_temperature_map_shape()
+    if num_rows_m08 != 62 or num_cols_m08 != 80:
+        senxor_sensor_m08, senxor_sensor_m16 = senxor_sensor_m16, senxor_sensor_m08
+        
+    # seek
     seek_camera = seekthermal(data_format="others")
 
     # buffer for synchronizing different sensors
     # since some sensors get data slower
     buffer_len = 3
-
     seek_camera_buffer = image_buffer(buffer_len)
     realsense_color_buffer = image_buffer(buffer_len)
     realsense_depth_buffer = image_buffer(buffer_len)
     # mlx_buffer = image_buffer(buffer_len)
 
+    # prepare shapes of the inputs
     num_rows_m08, num_cols_m08 = senxor_sensor_m08.get_temperature_map_shape()
-    
-    # num_rows_m16, num_cols_m16 = senxor_sensor_m16.get_temperature_map_shape()
+    num_rows_m16, num_cols_m16 = senxor_sensor_m16.get_temperature_map_shape()
 
-    print("Matplotlib backend:", matplotlib.get_backend())
-    print("before collecting data=================================================")
+    # metadata about collection timing
     framecnt = 0   # the number of the received frames
     saved_frame_cnt = 0  # the number of the saved frames
     start_time = time.time()
@@ -491,6 +502,7 @@ if __name__ == "__main__":
     sleep_time = args.sleep_time   # sleep time between each frame, control the collecting speed
     last_collect_time = time.time()
 
+    # preparation for plotting
     fig = plt.figure(figsize=(12, 8))
     ax = fig.add_subplot(111, projection='3d')
     # plt.show(block=False)
@@ -498,58 +510,71 @@ if __name__ == "__main__":
     while True:
         #print("===========debug: start collecting data, frame:", framecnt, "================")
         framecnt+=1
+        
+        # obtain data from sensors
         senxor_temperature_map_m08_ori, header1 = senxor_sensor_m08.get_temperature_map()
-        # senxor_temperature_map_m16_ori, header2 = senxor_sensor_m16.get_temperature_map()
+        senxor_temperature_map_m16_ori, header2 = senxor_sensor_m16.get_temperature_map()
         realsense_depth_image_ori, realsense_color_image_ori = realsense_sensor.get_frame()
         seek_camera_frame_ori = copy.deepcopy(seek_camera.get_frame())
-        # if args.enable_MLX:
-        #     MLX_temperature_map_ori = mlx_sensor.get_temperature_map()
-        #     mlx_buffer.add(MLX_temperature_map_ori)
-        #     MLX_temperature_map_ori = mlx_buffer.get()
 
+        # adding to buffer for synchronization
         seek_camera_buffer.add(seek_camera_frame_ori)
         realsense_color_buffer.add(realsense_color_image_ori)
         realsense_depth_buffer.add(realsense_depth_image_ori)
-
+        
+        # drawing from buffer for synchronization
         seek_camera_frame_ori= seek_camera_buffer.get()
         realsense_color_image_ori = realsense_color_buffer.get()
         realsense_depth_image_ori = realsense_depth_buffer.get()
 
-        if realsense_depth_image_ori is None or realsense_color_image_ori is None or senxor_temperature_map_m08_ori is None or seek_camera_frame_ori is None:
+        # check exist
+        if realsense_depth_image_ori is None or realsense_color_image_ori is None or senxor_temperature_map_m08_ori is None or senxor_temperature_map_m16_ori is None or seek_camera_frame_ori is None:
             continue
         else:
-            realsense_depth_image, realsense_color_image, senxor_temperature_map_m08, seek_camera_frame = realsense_depth_image_ori, realsense_color_image_ori, senxor_temperature_map_m08_ori, seek_camera_frame_ori
+            realsense_depth_image, realsense_color_image, senxor_temperature_map_m08, senxor_temperature_map_m16, seek_camera_frame = realsense_depth_image_ori, realsense_color_image_ori, senxor_temperature_map_m08_ori, senxor_temperature_map_m16_ori, seek_camera_frame_ori
 
-            print("DEBUG: shape of sensor:", num_cols_m08, num_rows_m08)
+            print("DEBUG: shape of m08:", num_cols_m08, num_rows_m08)
+            print("DEBUG: shape of m16:", num_cols_m16, num_rows_m16)
+            
+            # preprocess frames: organize pixels and orientation
             senxor_temperature_map_m08 = senxor_temperature_map_m08.reshape(num_cols_m08, num_rows_m08)
             senxor_temperature_map_m08 = np.flip(senxor_temperature_map_m08, 0)
-            
+            senxor_temperature_map_m16 = senxor_temperature_map_m16.reshape(num_cols_m16, num_rows_m16)
+            senxor_temperature_map_m16 = np.flip(senxor_temperature_map_m16, 0)
             seek_camera_frame = np.flip(seek_camera_frame, 0)
             seek_camera_frame = np.flip(seek_camera_frame, 1)
             
-            # if the size is not 62x80, resize to 62x80
-            if senxor_temperature_map_m08.shape != (62, 80):
-                print("is m16", senxor_temperature_map_m08.shape)
-                # senxor_temperature_map_m08 = cv2.resize(senxor_temperature_map_m08, (80, 62), interpolation=cv2.INTER_NEAREST)
+            # postprocess
             if args.mi08_process:
-                senxor_temperature_map_m08 = senxor_postprocess_m08.process_temperature_map(senxor_temperature_map_m08)
+                senxor_temperature_map_m08 = senxor_postprocess_m.process_temperature_map(senxor_temperature_map_m08)
+            if args.mi16_process:
+                senxor_temperature_map_m16 = senxor_postprocess_m.process_temperature_map(senxor_temperature_map_m16)
 
+            # preparing file name
             timestampstr = time.strftime("%Y%m%d%H%M%S", time.localtime()) + f"{int((time.time()%1)*1e6):06d}"
             npyname = timestampstr + ".npy"
             if args.save == 1:
                 # timestamp format: yyyymmddhhmmssffffff
                 imgpath = os.path.join(imgdest, npyname)
-                thermalpath = os.path.join(m08dest, npyname)
+                m08path = os.path.join(m08dest, npyname)
+                m16path = os.path.join(m16dest, npyname)
                 depthpath = os.path.join(depthdest, npyname)
                 seekpath = os.path.join(seekdest, npyname)
                 # depthoutputpath = os.path.join(depthoutputdest, npyname)
                 np.save(imgpath, realsense_color_image)
                 np.save(depthpath, realsense_depth_image)
-                np.save(thermalpath, senxor_temperature_map_m08)
+                np.save(m08path, senxor_temperature_map_m08)
+                np.save(m16path, senxor_temperature_map_m16)
                 np.save(seekpath, seek_camera_frame)
 
             print("shape of m08:", senxor_temperature_map_m08.shape)
-            thermal_images = np.expand_dims(senxor_temperature_map_m08, axis=0)
+
+            if thermal_input == "seek":
+                thermal_images = np.expand_dims(seek_camera_frame, axis=0)
+            elif thermal_input == "m08":
+                thermal_images = np.expand_dims(senxor_temperature_map_m08, axis=0)
+            elif thermal_input == "m16":
+                thermal_images = np.expand_dims(senxor_temperature_map_m16, axis=0)
             thermal_images = np.expand_dims(thermal_images, axis=0)
             print("shape of m08 afterwards:", thermal_images.shape)
             thermal_images = torch.from_numpy(thermal_images.copy())
