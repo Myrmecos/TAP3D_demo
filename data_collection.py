@@ -19,6 +19,7 @@ import matplotlib
 matplotlib.use('Agg')  # Ensure Agg backend is set
 import matplotlib.pyplot as plt
 import logging
+from DataAnnotation import DataAnnotate
 logging.getLogger().setLevel(logging.CRITICAL)
 # sys.path.append("/home/zx/Desktop/zx/DeepTadarDataCollect-ubuntu-data-collect/")
 import seekcamera
@@ -430,6 +431,25 @@ def plot_3d_point_cloud(fig, ax, point_cloud, max_num_persons, max_num_points, c
     # ans:
     # ax.view_init(elev=20, azim=-0)
 
+def process_mask(result_dict):
+    mask = None
+    
+    for i in range(result_dict['num_persons']):
+        if mask is None:
+            mask = np.zeros_like(result_dict["depth_mask_person"][0])
+            
+        mask[result_dict["depth_mask_person"][0] > 0] = 255
+        mask = mask.astype(np.uint8)
+        # print all uniq values in mask
+        print("Uniq values in mask:", np.unique(mask))
+        
+        mask = cv2.applyColorMap(mask, cv2.COLORMAP_JET)
+    if mask is None:
+        mask = np.zeros((62, 80), dtype=np.uint8)
+    mask = cv2.resize(mask, (320, 240), interpolation=cv2.INTER_NEAREST)
+    mask = cv2.applyColorMap(mask, cv2.COLORMAP_JET)
+    return mask
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
@@ -459,6 +479,8 @@ if __name__ == "__main__":
     pointcloudoutputdest = os.path.join(args.save_dest, "pointcloud_output")
     
     thermal_input = args.thermal_input
+    sensor_name = "seek_thermal" if thermal_input == "seek" else f"senxor_{thermal_input}"
+    annotator = DataAnnotate(sensor_name)
     
     if args.save == 1 and not os.path.exists(args.save_dest):
         os.mkdir(args.save_dest)
@@ -575,11 +597,17 @@ if __name__ == "__main__":
                 thermal_images = np.expand_dims(senxor_temperature_map_m08, axis=0)
             elif thermal_input == "m16":
                 thermal_images = np.expand_dims(senxor_temperature_map_m16, axis=0)
+            
+            # MODEL calling
             thermal_images = np.expand_dims(thermal_images, axis=0)
             print("shape of m08 afterwards:", thermal_images.shape)
             thermal_images = torch.from_numpy(thermal_images.copy())
             # produce point cloud visualization for m08
             ptcloud = t2p.thermal2ptcloud(thermal_images)
+            result_dict = annotator.forward(realsense_color_image, realsense_depth_image)
+            
+            print("DEBUG: shape of depth_person:", len(result_dict["depth_mask_person"]))
+            print("DEBUG: shape of point_cloud_person:", len(result_dict["point_cloud_person"]))
 
             # # =======================================
             # depth = t2p.thermal2depth(thermal_images)
@@ -613,6 +641,9 @@ if __name__ == "__main__":
             # plt.show()
             # rescale image such that its width is 960, and its height-width ration remains unchanged
             image = cv2.resize(image, (960, int(960 * image.shape[0] / image.shape[1])))
+            
+            # # visualize mask
+            mask = process_mask(result_dict)
 
             # visualize realsense
             realsense_depth_image = cv2.applyColorMap(cv2.convertScaleAbs(realsense_depth_image, alpha=0.03), cv2.COLORMAP_JET)
@@ -639,8 +670,8 @@ if __name__ == "__main__":
             #print(realsense_depth_image.shape, realsense_color_image.shape, seek_camera_frame.shape,  senxor_temperature_map_m08.shape, MLX_temperature_map.shape,)
             interm1 = np.concatenate((realsense_depth_image, realsense_color_image, senxor_temperature_map_m08), axis=1)
             # black image: shape is 320*2 by 240
-            black_image = np.zeros((240, 320*2, 3), dtype=np.uint8)
-            interm2 = np.concatenate((seek_camera_frame, black_image), axis=1)
+            black_image = np.zeros((240, 320, 3), dtype=np.uint8)
+            interm2 = np.concatenate((seek_camera_frame, mask, black_image), axis=1)
             interm1 = np.concatenate((interm1, interm2), axis=0)
             interm1 = np.concatenate((interm1, image), axis=0)
             final_image = interm1
