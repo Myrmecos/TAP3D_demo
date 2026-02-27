@@ -62,7 +62,7 @@ class MLXSensor:
             except:
                 return None
         return None
-    
+
     def get_temperature_map(self):
         data = self.read_data()
         if data is not None:
@@ -70,17 +70,17 @@ class MLXSensor:
             if len(temp) == 768:
                 temp = temp.reshape(24, 32)
                 return temp
-        return None   
-    
+        return None
+
     def get_ambient_temperature(self):
         data = self.read_data()
         if data:
             return data["at"]
         return None
-    
+
     def close(self):
         self.ser.close()
-    
+
     def SubpageInterpolating(self,subpage):
         shape = subpage.shape
         mat = subpage.copy()
@@ -94,19 +94,19 @@ class MLXSensor:
                     num = num+1
                 except:
                     top = 0.0
-                
+
                 try:
                     down = mat[i+1,j]
                     num = num+1
                 except:
                     down = 0.0
-                
+
                 try:
                     left = mat[i,j-1]
                     num = num+1
                 except:
                     left = 0.0
-                
+
                 try:
                     right = mat[i,j+1]
                     num = num+1
@@ -120,20 +120,20 @@ class senxor_16:
     def __init__(self, sensor_port = "/dev/ttyACM0"):
         self.sensor_port = sensor_port
         self.mi48 = senxor.utils.connect_senxor(comport=self.sensor_port)
-        self.setup_thermal_camera(fps_divisor=3) 
-        
+        self.setup_thermal_camera(fps_divisor=3)
+
         self.mi48.set_data_type('temperature')
         self.mi48.set_temperature_units('Celsius')
-        
+
         self.ncols, self.nrows = self.mi48.fpa_shape
         self.mi48.start(stream=True, with_header=True)
 
     def get_temperature_map(self):
-        return self.mi48.read() # data, header 
-    
+        return self.mi48.read() # data, header
+
     def get_temperature_map_shape(self):
         return self.ncols, self.nrows
-    
+
     def setup_thermal_camera(self, fps_divisor = 3):
         self.mi48.regwrite(0xB4, fps_divisor)  #
         # Disable firmware filters and min/max stabilisation
@@ -154,28 +154,28 @@ class senxor_16:
         self.mi48.set_offset_corr(0.0)  # offset 0.0
         self.mi48.set_otf(0.0)          # otf = 0
         self.mi48.regwrite(0x02, 0x00)  # disable readout error compensation
-    
+
     def close(self):
         self.mi48.stop()
 
 class senxor_08:
-    def __init__(self, sensor_port = "/dev/ttyACM1"):
+    def __init__(self, sensor_port = "/dev/ttyACM0"):
         self.sensor_port = sensor_port
         self.mi48 = senxor_previous.utils.connect_senxor(src=self.sensor_port)
-        self.setup_thermal_camera(fps_divisor=3) 
-        
+        self.setup_thermal_camera(fps_divisor=3)
+
         self.mi48.set_data_type('temperature')
         self.mi48.set_temperature_units('Celsius')
-        
+
         self.ncols, self.nrows = self.mi48.fpa_shape
         self.mi48.start(stream=True, with_header=True)
 
     def get_temperature_map(self):
-        return self.mi48.read() # data, header 
-    
+        return self.mi48.read() # data, header
+
     def get_temperature_map_shape(self):
         return self.ncols, self.nrows
-    
+
     def setup_thermal_camera(self, fps_divisor = 3):
         self.mi48.regwrite(0xB4, fps_divisor)  #
         # MMS and STARK are sufficient for Cougar
@@ -191,10 +191,10 @@ class senxor_08:
         self.mi48.set_offset_corr(0.0)  # offset 0.0
         self.mi48.set_otf(0.0)          # otf = 0
         self.mi48.regwrite(0x02, 0x00)  # disable readout error compensation
-    
+
     def close(self):
         self.mi48.stop()
-        
+
 
 class senxor_postprocess:
     def __init__(self):
@@ -210,8 +210,8 @@ class senxor_postprocess:
         filt_uint8 = senxor_previous.utils.cv_filter(senxor_previous.utils.remap(frame), self.par, use_median=True,
                            use_bilat=True, use_nlm=False)
         return filt_uint8
-    
-        
+
+
 class realsense:
     def __init__(self):
         self.pipeline = rs.pipeline()
@@ -273,9 +273,9 @@ class seekthermal:
     def __init__(self, data_format="color"):
         self.data_format = data_format
         self.manager = SeekCameraManager(SeekCameraIOType.USB)
-        if self.data_format == "color": 
-            self.renderer = Renderer()  
-            self.manager.register_event_callback(self._on_event, self.renderer)      
+        if self.data_format == "color":
+            self.renderer = Renderer()
+            self.manager.register_event_callback(self._on_event, self.renderer)
             self.frame_condition = Condition()
         else:
             self.data_frame = None
@@ -292,7 +292,7 @@ class seekthermal:
                     camera.register_frame_available_callback(on_frame2, None)
                     camera.capture_session_start(SeekCameraFrameFormat.THERMOGRAPHY_FLOAT)
 
-            self.manager.register_event_callback(on_event2)     
+            self.manager.register_event_callback(on_event2)
 
     def _on_event(self, camera, event_type, event_status, renderer):
         print("{}: {}".format(str(event_type), camera.chipid))
@@ -314,7 +314,7 @@ class seekthermal:
 
 
     def get_frame(self):
-        if self.data_format == "color": 
+        if self.data_format == "color":
             with self.renderer.frame_condition:
                 if self.renderer.frame_condition.wait(150.0 / 1000.0):
                     frame = self.renderer.frame.data
@@ -331,7 +331,7 @@ class seekthermal:
         except:
             pass
         self.manager.destroy()
-    
+
 class image_buffer():
     def __init__(self, buffer_size=5):
         self.buffer_size = buffer_size
@@ -341,23 +341,23 @@ class image_buffer():
         for i in range (buffer_size):
             self.buffer.append(None)
 
-    
+
     def add(self, image):
         #if self.buffer[self.write] is not None:
         self.buffer[self.write] = image
         self.write += 1
         self.write = self.write%self.buffer_size
 
-    
+
     def get(self):
         self.read += 1
         self.read %= self.buffer_size
         return self.buffer[self.read]
 
-def plot_3d_point_cloud(fig, ax, point_cloud, max_num_persons, max_num_points, camera_height=1, elev=15, azim=-45, threshold=0.5, s= 10):
+def plot_3d_point_cloud(fig, ax, point_cloud, max_num_persons, max_num_points, camera_height=1, elev=15, azim=-45, threshold=0.1, s= 10):
     points_per_person = max_num_points + 1
     scatter_ret = None
-    
+
 
     # Define colormap for different users
     def plot_camera(ax):
@@ -392,41 +392,44 @@ def plot_3d_point_cloud(fig, ax, point_cloud, max_num_persons, max_num_points, c
             edgecolors='black',
             alpha=1
         ))
- 
-    
+
+
     plot_camera(ax)
-    # colors = plt.cm.jet(np.linspace(0, 1, max_num_persons))
+    colors = ['red', 'blue', 'green', 'orange', 'purple']
     # Plot points for each person
     for person_idx in range(max_num_persons):
         # Extract points for this person (assuming each person has max_num_points)
         start_idx = person_idx * points_per_person
         end_idx = start_idx + points_per_person
-        
+
         indicator_idx = (person_idx + 1) * points_per_person - 1
         indicator_point = point_cloud[0, indicator_idx]
         if indicator_point > threshold:
             # Get points for this person
             person_points = point_cloud[ :, start_idx:end_idx]
-            
+
             # Reshape to get individual 3D points
             x = person_points[0, :]
             y = person_points[1, :]
             z = person_points[2, :]
-            
+
             # Filter out points where all coordinates are 0
             valid_points = ~((x < 5) & (y < 5) & (z < 5) & (x > -5) & (y > -5) & (z > -5))
             x_valid = x[valid_points]
             y_valid = y[valid_points]
-            y_valid = -y_valid  
+            y_valid = -y_valid
             z_valid = z[valid_points]
-            
+
             if len(x_valid) > 0:  # Only plot if there are valid points
                 scatter_ret = ax.scatter(x_valid, z_valid, y_valid,
-                        label="", alpha=0.5, s=s, c="red")
+                        label="", alpha=0.5, s=s, c=colors[person_idx])
     ax.set_xlim([-2000, 2000])
     ax.set_ylim([0, 4000])
     ax.set_zlim([-1000, 1000])
-    
+    # how can I change the viewing angle?
+    # ans:
+    # ax.view_init(elev=20, azim=-0)
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
@@ -436,7 +439,8 @@ if __name__ == "__main__":
     parser.add_argument("--mi08_process", type=int, default=0, help="enable postprocessing for mi08 or not")
     parser.add_argument("--mi16_process", type=int, default=0, help="enable postprocessing for mi16 or not")
     parser.add_argument("--save", type=int, default=0, help="0 for not save, 1 for save")
-    parser.add_argument("--save_dest", type=str, default="data/temp", help="destination for saving image, thermal and depth maps")
+    timestampstr = time.strftime("%Y%m%d%H%M%S", time.localtime()) + f"{int((time.time()%1)*1e6):06d}"
+    parser.add_argument("--save_dest", type=str, default=f"data/{timestampstr}", help="destination for saving image, thermal and depth maps")
 
     parser.add_argument("--exp_config_file", type=str, help="Configuration YAML file of the experiment")
     parser.add_argument("--weights", type=str, default=None, help="Path to .pth weights (optional)")
@@ -444,32 +448,38 @@ if __name__ == "__main__":
     args = parser.parse_args()
     exp_config_file_name = args.exp_config_file + '.yaml'
     t2p = M08ToPtcloud('exp_configs', exp_config_file_name, args.weights)
-    
+
     imgdest = os.path.join(args.save_dest, "realsense_color")
     depthdest = os.path.join(args.save_dest, "realsense_depth")
     m08dest = os.path.join(args.save_dest, "senxor_m08")
+    seekdest = os.path.join(args.save_dest, "seek_color")
+    pointcloudoutputdest = os.path.join(args.save_dest, "pointcloud_output")
     if args.save == 1 and not os.path.exists(args.save_dest):
         os.mkdir(args.save_dest)
         os.mkdir(imgdest)
         os.mkdir(depthdest)
         os.mkdir(m08dest)
-    
+        os.mkdir(pointcloudoutputdest)
+        os.mkdir(seekdest)
+
     if args.mi08_process:
         senxor_postprocess_m08 = senxor_postprocess()
 
-    realsense_sensor = realsense()  
+    realsense_sensor = realsense()
     senxor_sensor_m08 = senxor_16(sensor_port="/dev/ttyACM0") #beware! This may get flipped
+    seek_camera = seekthermal(data_format="others")
 
     # buffer for synchronizing different sensors
     # since some sensors get data slower
     buffer_len = 3
 
-    # seek_camera_buffer = image_buffer(buffer_len)
+    seek_camera_buffer = image_buffer(buffer_len)
     realsense_color_buffer = image_buffer(buffer_len)
     realsense_depth_buffer = image_buffer(buffer_len)
     # mlx_buffer = image_buffer(buffer_len)
-    
+
     num_rows_m08, num_cols_m08 = senxor_sensor_m08.get_temperature_map_shape()
+    
     # num_rows_m16, num_cols_m16 = senxor_sensor_m16.get_temperature_map_shape()
 
     print("Matplotlib backend:", matplotlib.get_backend())
@@ -480,53 +490,64 @@ if __name__ == "__main__":
     collection_duration = args.collection_duration
     sleep_time = args.sleep_time   # sleep time between each frame, control the collecting speed
     last_collect_time = time.time()
-    
+
     fig = plt.figure(figsize=(12, 8))
     ax = fig.add_subplot(111, projection='3d')
     # plt.show(block=False)
 
     while True:
-        #print("===========debug: start collecting data, frame:", framecnt, "================") 
+        #print("===========debug: start collecting data, frame:", framecnt, "================")
         framecnt+=1
         senxor_temperature_map_m08_ori, header1 = senxor_sensor_m08.get_temperature_map()
         # senxor_temperature_map_m16_ori, header2 = senxor_sensor_m16.get_temperature_map()
         realsense_depth_image_ori, realsense_color_image_ori = realsense_sensor.get_frame()
-        # seek_camera_frame_ori = copy.deepcopy(seek_camera.get_frame())
+        seek_camera_frame_ori = copy.deepcopy(seek_camera.get_frame())
         # if args.enable_MLX:
         #     MLX_temperature_map_ori = mlx_sensor.get_temperature_map()
         #     mlx_buffer.add(MLX_temperature_map_ori)
         #     MLX_temperature_map_ori = mlx_buffer.get()
-        
-        # seek_camera_buffer.add(seek_camera_frame_ori)
-        realsense_color_buffer.add(realsense_color_image_ori)
-        realsense_depth_buffer.add(realsense_depth_image_ori)           
 
-        # seek_camera_frame_ori= seek_camera_buffer.get()
+        seek_camera_buffer.add(seek_camera_frame_ori)
+        realsense_color_buffer.add(realsense_color_image_ori)
+        realsense_depth_buffer.add(realsense_depth_image_ori)
+
+        seek_camera_frame_ori= seek_camera_buffer.get()
         realsense_color_image_ori = realsense_color_buffer.get()
         realsense_depth_image_ori = realsense_depth_buffer.get()
 
-        if realsense_depth_image_ori is None or realsense_color_image_ori is None or senxor_temperature_map_m08_ori is None:
+        if realsense_depth_image_ori is None or realsense_color_image_ori is None or senxor_temperature_map_m08_ori is None or seek_camera_frame_ori is None:
             continue
         else:
-            realsense_depth_image, realsense_color_image, senxor_temperature_map_m08 = realsense_depth_image_ori, realsense_color_image_ori, senxor_temperature_map_m08_ori
+            realsense_depth_image, realsense_color_image, senxor_temperature_map_m08, seek_camera_frame = realsense_depth_image_ori, realsense_color_image_ori, senxor_temperature_map_m08_ori, seek_camera_frame_ori
 
-            
+            print("DEBUG: shape of sensor:", num_cols_m08, num_rows_m08)
             senxor_temperature_map_m08 = senxor_temperature_map_m08.reshape(num_cols_m08, num_rows_m08)
             senxor_temperature_map_m08 = np.flip(senxor_temperature_map_m08, 0)
+            
+            seek_camera_frame = np.flip(seek_camera_frame, 0)
+            seek_camera_frame = np.flip(seek_camera_frame, 1)
+            
+            # if the size is not 62x80, resize to 62x80
+            if senxor_temperature_map_m08.shape != (62, 80):
+                print("is m16", senxor_temperature_map_m08.shape)
+                # senxor_temperature_map_m08 = cv2.resize(senxor_temperature_map_m08, (80, 62), interpolation=cv2.INTER_NEAREST)
             if args.mi08_process:
                 senxor_temperature_map_m08 = senxor_postprocess_m08.process_temperature_map(senxor_temperature_map_m08)
-            
+
+            timestampstr = time.strftime("%Y%m%d%H%M%S", time.localtime()) + f"{int((time.time()%1)*1e6):06d}"
+            npyname = timestampstr + ".npy"
             if args.save == 1:
                 # timestamp format: yyyymmddhhmmssffffff
-                timestampstr = time.strftime("%Y%m%d%H%M%S", time.localtime()) + f"{int((time.time()%1)*1e6):06d}"
-                npyname = timestampstr + ".npy"
                 imgpath = os.path.join(imgdest, npyname)
                 thermalpath = os.path.join(m08dest, npyname)
                 depthpath = os.path.join(depthdest, npyname)
+                seekpath = os.path.join(seekdest, npyname)
+                # depthoutputpath = os.path.join(depthoutputdest, npyname)
                 np.save(imgpath, realsense_color_image)
                 np.save(depthpath, realsense_depth_image)
                 np.save(thermalpath, senxor_temperature_map_m08)
-                
+                np.save(seekpath, seek_camera_frame)
+
             print("shape of m08:", senxor_temperature_map_m08.shape)
             thermal_images = np.expand_dims(senxor_temperature_map_m08, axis=0)
             thermal_images = np.expand_dims(thermal_images, axis=0)
@@ -535,8 +556,25 @@ if __name__ == "__main__":
             # produce point cloud visualization for m08
             ptcloud = t2p.thermal2ptcloud(thermal_images)
 
-            timestamp = time.time()
+            # # =======================================
+            # depth = t2p.thermal2depth(thermal_images)
+            # # convert depth map into image
+            # depth_image = depth[0, 0, :, :].cpu().numpy()
+            # depth_image = (depth_image - depth_image.min()) / (depth_image.max() - depth_image.min() + 1e-8) * 255
+            # depth_image = depth_image.astype(np.uint8)
+            # # reshape image to 16 times the size
+            # depth_image = cv2.resize(depth_image, (depth_image.shape[1] * 16, depth_image.shape[0] * 16), interpolation=cv2.INTER_LINEAR)
+            # cv2.imshow("Depth Image", depth_image)
+            # cv2.waitKey(1)
+            # # ==========================================
             
+            if args.save == 1:
+                # save point cloud ptcloud
+                pointcloudpath = os.path.join(pointcloudoutputdest, npyname)
+                np.save(pointcloudpath, ptcloud.cpu().numpy())
+
+            timestamp = time.time()
+
             # for visualization only
             # if args.vis_flag:
             # visualize point cloud
@@ -550,12 +588,12 @@ if __name__ == "__main__":
             # plt.show()
             # rescale image such that its width is 960, and its height-width ration remains unchanged
             image = cv2.resize(image, (960, int(960 * image.shape[0] / image.shape[1])))
-            
+
             # visualize realsense
             realsense_depth_image = cv2.applyColorMap(cv2.convertScaleAbs(realsense_depth_image, alpha=0.03), cv2.COLORMAP_JET)
-            realsense_depth_image = cv2.resize(realsense_depth_image, (320, 240))  
+            realsense_depth_image = cv2.resize(realsense_depth_image, (320, 240))
             realsense_color_image = cv2.resize(realsense_color_image, (320, 240), interpolation=cv2.INTER_NEAREST)
-            
+
             # visualize m08
             m08_min = -1024
             m08_max = -1024
@@ -571,7 +609,7 @@ if __name__ == "__main__":
             interm1 = np.concatenate((interm1, image), axis=0)
             final_image = interm1
             cv2.imshow("Final Image", final_image)
-                
+
             time_lasting = time.time() - start_time
             if time_lasting > collection_duration:
                 break
@@ -582,14 +620,14 @@ if __name__ == "__main__":
             print(f"Frame rate: {framecnt / time_lasting} Hz")
 
                 #break
-            
+
             key = cv.waitKey(1)
             if key in [ord("q"), ord('Q'), 27]:
                 break
-        
+
     senxor_sensor_m08.close()
 
     for i in range (5):
         print('\a')
-        
+
 # python data_collection.py --save_data 0 --exp_config_file model3_m08 --weights weights/m08/model3_m08_thermo_pt_0819203728.pth

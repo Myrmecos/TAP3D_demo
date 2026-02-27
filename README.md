@@ -19,3 +19,6 @@ To save data to data/ folder, do: `python data_collection.py --exp_config_file m
 
 # annotating data
 To annotate data, do `python DataAnnotation.py --sensor_name senxor_m08 --visualization_flag 1 --raw_data_folder data`
+
+# collect data with timestamp as dir name under data/:
+`python data_collection.py --exp_config_file model3_m08 --weights weights/m08/model3_m08_thermo_pt_0819203728.pth --collection_duration 1200 --save 1`

@@ -4,3 +4,6 @@ weights/*
 AnnotatedData
 data 
 detectron2 
+workingLog/*
+unused/*
+detectron2
