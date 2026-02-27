@@ -604,8 +604,19 @@ if __name__ == "__main__":
             senxor_temperature_map_m08 = cv2.resize(senxor_temperature_map_m08, (320, 240), interpolation=cv2.INTER_NEAREST)
             senxor_temperature_map_m08 = cv2.applyColorMap(senxor_temperature_map_m08, cv2.COLORMAP_JET)
             put_temp(senxor_temperature_map_m08, m08_min, m08_max, "m08")
+            
+            # visualize seek camera
+            seek_camera_frame = seek_camera_frame.astype(np.uint8)
+            seek_camera_frame = cv2.normalize(seek_camera_frame, None, 0, 255, cv2.NORM_MINMAX)
+            seek_camera_frame = cv2.resize(seek_camera_frame, (320, 240), interpolation=cv2.INTER_NEAREST)
+            seek_camera_frame = cv2.applyColorMap(seek_camera_frame, cv2.COLORMAP_JET)
+            
             #print(realsense_depth_image.shape, realsense_color_image.shape, seek_camera_frame.shape,  senxor_temperature_map_m08.shape, MLX_temperature_map.shape,)
             interm1 = np.concatenate((realsense_depth_image, realsense_color_image, senxor_temperature_map_m08), axis=1)
+            # black image: shape is 320*2 by 240
+            black_image = np.zeros((240, 320*2, 3), dtype=np.uint8)
+            interm2 = np.concatenate((seek_camera_frame, black_image), axis=1)
+            interm1 = np.concatenate((interm1, interm2), axis=0)
             interm1 = np.concatenate((interm1, image), axis=0)
             final_image = interm1
             cv2.imshow("Final Image", final_image)
