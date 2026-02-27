@@ -1,6 +1,8 @@
 import serial
 import time
 import ast
+
+import yaml
 import numpy as np
 import cv2
 import sys
@@ -21,6 +23,7 @@ import matplotlib.pyplot as plt
 import logging
 from DataAnnotation import DataAnnotate
 import pickle as pkl
+from plot import plot_3d_point_cloud_new
 
 logging.getLogger().setLevel(logging.CRITICAL)
 # sys.path.append("/home/zx/Desktop/zx/DeepTadarDataCollect-ubuntu-data-collect/")
@@ -454,6 +457,29 @@ def process_mask(result_dict):
     cv2.putText(mask, "human mask", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
     return mask
 
+# results_dict = {
+#     'num_persons': 0,
+#     'depth_person': [],
+#     'depth_mask_person': [],  
+#     'point_cloud_person': [],
+#     '2D_pose_person': [],
+# }
+def concat_pcd(result_dict):
+    # Concatenate point clouds for all persons
+    # point cloud shape: (N, 3)
+    if not result_dict['point_cloud_person']:
+        return None
+    return np.concatenate(result_dict['point_cloud_person'], axis=0)
+
+def process_depth(result_dict, h = 62, w = 80):
+    # obtain a shape [1, 3, 62, 80] tensor. the 3 chanels represent depth, user index and foreground-background mask.
+    depth = result_dict['depth_person'][0] if result_dict['depth_person'] else np.zeros((h, w), dtype=np.float32)
+    user_index = result_dict['user_index'][0] if result_dict['user_index'] else np.zeros((h, w), dtype=np.float32)
+    fg_bg_mask = result_dict['fg_bg_mask'][0] if result_dict['fg_bg_mask'] else np.zeros((h, w), dtype=np.float32)
+
+    depth_3channel = torch.cat([depth, user_index, fg_bg_mask], dim=1)
+    return depth_3channel
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
@@ -472,7 +498,11 @@ if __name__ == "__main__":
     parser.add_argument("--thermal_input", type=str, default="m08", help="choose from m08, m16 and seek")
     
     args = parser.parse_args()
+    
     exp_config_file_name = args.exp_config_file + '.yaml'
+    exp_config_file_name_full = "exp_configs/" + args.exp_config_file + '.yaml'
+    exp_config = yaml.safe_load(open(exp_config_file_name_full))
+    
     t2p = M08ToPtcloud('exp_configs', exp_config_file_name, args.weights)
 
     imgdest = os.path.join(args.save_dest, "realsense_color")
@@ -531,8 +561,9 @@ if __name__ == "__main__":
     last_collect_time = time.time()
 
     # preparation for plotting
-    fig = plt.figure(figsize=(12, 8))
-    ax = fig.add_subplot(111, projection='3d')
+    fig = plt.figure(figsize=(18, 6))
+    ax = fig.add_subplot(121, projection='3d')
+    ax1 = fig.add_subplot(122, projection='3d')
     # plt.show(block=False)
 
     while True:
@@ -615,7 +646,7 @@ if __name__ == "__main__":
             # produce point cloud visualization for m08
             ptcloud = t2p.thermal2ptcloud(thermal_images)
             result_dict = annotator.forward(realsense_color_image, realsense_depth_image)
-            
+
             if args.save == 1:
                 annotationpath = os.path.join(annotationdest, pklname)
                 pkl.dump(result_dict, open(annotationpath, "wb"))
@@ -634,7 +665,12 @@ if __name__ == "__main__":
             # if args.vis_flag:
             # visualize point cloud
             ax.clear()
-            plot_3d_point_cloud(fig, ax, ptcloud.cpu().numpy(), 6, 1000)
+            ax1.clear()
+            plot_3d_point_cloud(fig, ax, ptcloud.cpu().numpy(),  exp_config['max_num_persons'], exp_config['max_num_points'])
+            pcl_gt =  concat_pcd(result_dict)
+            if pcl_gt is not None:
+                print("DEBUG: shape is:", pcl_gt.shape)
+                plot_3d_point_cloud(fig, ax1, pcl_gt.T, 1, pcl_gt.shape[0]-1)
             fig.canvas.draw()
             # fig.canvas.flush_events()
             image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
@@ -642,7 +678,7 @@ if __name__ == "__main__":
             image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
             # plt.show()
             # rescale image such that its width is 960, and its height-width ration remains unchanged
-            image = cv2.resize(image, (960, int(960 * image.shape[0] / image.shape[1])))
+            image = cv2.resize(image, (960*2, int(960 * 2 * image.shape[0] / image.shape[1])))
             
             # # visualize mask
             mask = process_mask(result_dict)
@@ -674,7 +710,7 @@ if __name__ == "__main__":
             # black image: shape is 320*2 by 240
             black_image = np.zeros((240, 320, 3), dtype=np.uint8)
             interm2 = np.concatenate((seek_camera_frame, mask, black_image), axis=1)
-            interm1 = np.concatenate((interm1, interm2), axis=0)
+            interm1 = np.concatenate((interm1, interm2), axis=1)
             interm1 = np.concatenate((interm1, image), axis=0)
             final_image = interm1
             cv2.imshow("Final Image", final_image)

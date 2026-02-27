@@ -21,6 +21,8 @@ import matplotlib.pyplot as plt
 import logging
 from DataAnnotation import DataAnnotate
 import pickle as pkl
+from plot import plot_3d_point_cloud_new
+import yaml
 
 logging.getLogger().setLevel(logging.CRITICAL)
 # sys.path.append("/home/zx/Desktop/zx/DeepTadarDataCollect-ubuntu-data-collect/")
@@ -466,13 +468,15 @@ if __name__ == "__main__":
     # timestampstr = time.strftime("%Y%m%d%H%M%S", time.localtime()) + f"{int((time.time()%1)*1e6):06d}"
     # parser.add_argument("--save_dest", type=str, default=f"data/{timestampstr}", help="destination for saving image, thermal and depth maps")
 
-    # parser.add_argument("--exp_config_file", type=str, help="Configuration YAML file of the experiment")
+    parser.add_argument("--exp_config_file", type=str, help="Configuration YAML file of the experiment")
     # parser.add_argument("--weights", type=str, default=None, help="Path to .pth weights (optional)")
     # parser.add_argument("--train", type=int, default="0", help="0 is test, 1 is train")
     # parser.add_argument("--thermal_input", type=str, default="m08", help="choose from m08, m16 and seek")
     parser.add_argument("--path", type=str, default=".", help="Path to the data directory")
 
     args = parser.parse_args()
+    exp_config_file_name = "exp_configs/" + args.exp_config_file + '.yaml'
+    exp_config = yaml.safe_load(open(exp_config_file_name))
 
     imgdest = os.path.join(args.path, "realsense_color")
     depthdest = os.path.join(args.path, "realsense_depth")
@@ -571,7 +575,11 @@ if __name__ == "__main__":
         interm1 = np.concatenate((interm1, interm2), axis=0)
         interm1 = np.concatenate((interm1, image), axis=0)
         final_image = interm1
+        
         cv2.imshow("Final Image", final_image)
+        # labels1 = [f'Pred. P{i+1}' for i in range(exp_config['max_num_persons'])]
+        # colors1 = plt.cm.summer(np.linspace(0, 1, exp_config['max_num_persons']))
+        # plot_3d_point_cloud_new(pointcloud,  exp_config['max_num_persons'], exp_config['max_num_points'], labels = labels1, colors=colors1, threshold=0.5, camera_height=1.3)
 
 
         #break

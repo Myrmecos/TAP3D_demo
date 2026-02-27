@@ -108,6 +108,7 @@ class M08ToPtcloud():
     
     def thermal2ptcloud(self, thermal):
         depth = self.thermal2depth(thermal)
+        print(depth.shape, "DEBUG=====================================")
         ptcloud = self.depth2ptcloud(depth)
         return ptcloud
 
