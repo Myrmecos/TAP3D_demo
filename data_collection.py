@@ -496,7 +496,7 @@ if __name__ == "__main__":
     parser.add_argument("--weights", type=str, default=None, help="Path to .pth weights (optional)")
     parser.add_argument("--train", type=int, default="0", help="0 is test, 1 is train")
     parser.add_argument("--thermal_input", type=str, default="m08", help="choose from m08, m16 and seek")
-    
+    parser.add_argument("--inference", type=int, default=1, help="whether to run inference or not, 1 for inference, 0 for no inference, -1 for no annotation and no inference")
     args = parser.parse_args()
     
     exp_config_file_name = args.exp_config_file + '.yaml'
@@ -561,10 +561,23 @@ if __name__ == "__main__":
     last_collect_time = time.time()
 
     # preparation for plotting
-    fig = plt.figure(figsize=(18, 6))
-    ax = fig.add_subplot(121, projection='3d')
-    ax1 = fig.add_subplot(122, projection='3d')
+    if args.inference == 1:
+        fig = plt.figure(figsize=(18, 6))
+        ax = fig.add_subplot(121, projection='3d')
+        ax1 = fig.add_subplot(122, projection='3d')
+    elif args.inference == 0:
+        fig = plt.figure(figsize=(12, 8))
+        ax = fig.add_subplot(111, projection='3d')
     # plt.show(block=False)
+
+
+
+
+
+
+
+
+
 
     while True:
         #print("===========debug: start collecting data, frame:", framecnt, "================")
@@ -585,8 +598,22 @@ if __name__ == "__main__":
         seek_camera_frame_ori= seek_camera_buffer.get()
         realsense_color_image_ori = realsense_color_buffer.get()
         realsense_depth_image_ori = realsense_depth_buffer.get()
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
 
-        # check exist
+        # ================================== check exist and processing data ==================================
         if realsense_depth_image_ori is None or realsense_color_image_ori is None or senxor_temperature_map_m08_ori is None or senxor_temperature_map_m16_ori is None or seek_camera_frame_ori is None:
             continue
         else:
@@ -609,7 +636,18 @@ if __name__ == "__main__":
             if args.mi16_process:
                 senxor_temperature_map_m16 = senxor_postprocess_m.process_temperature_map(senxor_temperature_map_m16)
 
-            # saving
+
+
+
+
+
+
+
+
+
+
+
+            # ================================== saving the raw data ==================================
             # preparing file name
             timestampstr = time.strftime("%Y%m%d%H%M%S", time.localtime()) + f"{int((time.time()%1)*1e6):06d}"
             npyname = timestampstr + ".npy"
@@ -629,60 +667,89 @@ if __name__ == "__main__":
                 np.save(m16path, senxor_temperature_map_m16)
                 np.save(seekpath, seek_camera_frame)
                
-
             print("shape of m08:", senxor_temperature_map_m08.shape)
 
-            if thermal_input == "seek":
-                thermal_images = np.expand_dims(seek_camera_frame, axis=0)
-            elif thermal_input == "m08":
-                thermal_images = np.expand_dims(senxor_temperature_map_m08, axis=0)
-            elif thermal_input == "m16":
-                thermal_images = np.expand_dims(senxor_temperature_map_m16, axis=0)
-            
-            # MODEL calling
-            thermal_images = np.expand_dims(thermal_images, axis=0)
-            thermal_images = torch.from_numpy(thermal_images.copy())
-            
-            # produce point cloud visualization for m08
-            ptcloud = t2p.thermal2ptcloud(thermal_images)
-            result_dict = annotator.forward(realsense_color_image, realsense_depth_image)
 
-            if args.save == 1:
+
+
+
+
+
+
+
+            # ================================== Inference: get the predicted point clouds ================================================
+            if args.inference == 1:
+                if thermal_input == "seek":
+                    thermal_images = np.expand_dims(seek_camera_frame, axis=0)
+                elif thermal_input == "m08":
+                    thermal_images = np.expand_dims(senxor_temperature_map_m08, axis=0)
+                elif thermal_input == "m16":
+                    thermal_images = np.expand_dims(senxor_temperature_map_m16, axis=0)
+                
+                # MODEL calling
+                thermal_images = np.expand_dims(thermal_images, axis=0)
+                thermal_images = torch.from_numpy(thermal_images.copy())
+                
+                # produce point cloud visualization for m08
+                ptcloud = t2p.thermal2ptcloud(thermal_images)
+            
+            # Annotate: get annotation dictionary +++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+            if args.inference == 1 or args.inference == 0:
+                result_dict = annotator.forward(realsense_color_image, realsense_depth_image)
+                
+            # Inference: save predicted point clouds ============================================================
+            if args.save == 1 and args.inference == 1:
                 annotationpath = os.path.join(annotationdest, pklname)
                 pkl.dump(result_dict, open(annotationpath, "wb"))
-            
-            print("DEBUG: shape of depth_person:", len(result_dict["depth_mask_person"]))
-            print("DEBUG: shape of point_cloud_person:", len(result_dict["point_cloud_person"]))
-            
-            if args.save == 1:
+
                 # save point cloud ptcloud
                 pointcloudpath = os.path.join(pointcloudoutputdest, npyname)
                 np.save(pointcloudpath, ptcloud.cpu().numpy())
 
             timestamp = time.time()
-
-            # for visualization only
-            # if args.vis_flag:
-            # visualize point cloud
-            ax.clear()
-            ax1.clear()
-            plot_3d_point_cloud(fig, ax, ptcloud.cpu().numpy(),  exp_config['max_num_persons'], exp_config['max_num_points'])
-            pcl_gt =  concat_pcd(result_dict)
-            if pcl_gt is not None:
-                print("DEBUG: shape is:", pcl_gt.shape)
-                plot_3d_point_cloud(fig, ax1, pcl_gt.T, 1, pcl_gt.shape[0]-1)
-            fig.canvas.draw()
-            # fig.canvas.flush_events()
-            image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
-            image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-            # plt.show()
-            # rescale image such that its width is 960, and its height-width ration remains unchanged
-            image = cv2.resize(image, (960*2, int(960 * 2 * image.shape[0] / image.shape[1])))
             
-            # # visualize mask
-            mask = process_mask(result_dict)
+            
+            
+            
+            
+            
+            
 
+            # ================== for visualization: 2 axes for inference and annotate, 1 axis for annotate, no axis for collection ============
+            if args.inference == 1:
+                ax1.clear()
+                # print(ptcloud.cpu().numpy().shape, "DDDDEBUG")
+                plot_3d_point_cloud(fig, ax1, ptcloud.cpu().numpy(),  exp_config['max_num_persons'], exp_config['max_num_points'])
+            if args.inference == 1 or args.inference == 0:
+                ax.clear()
+                pcl_gt =  concat_pcd(result_dict)
+                if pcl_gt is not None:
+                    print("DEBUG: shape is:", pcl_gt.shape)
+                    plot_3d_point_cloud(fig, ax, pcl_gt.T, 1, pcl_gt.shape[0]-1)
+                else:
+                    plot_3d_point_cloud(fig, ax, np.zeros([3, 1*42]), 1, 42-1)
+                fig.canvas.draw()
+                # fig.canvas.flush_events()
+                image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
+                image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+                image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+            # rescale image such that its width is 960, and its height-width ration remains unchanged
+            if args.inference == 1:
+                cv2.putText(image, f"Ground Truth", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+                cv2.putText(image, f"Prediction", (10 + 960, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+                image = cv2.resize(image, (960*2, int(960 * 2 * image.shape[0] / image.shape[1])))
+            elif args.inference == 0:
+                image = cv2.resize(image, (960, int(960 * image.shape[0] / image.shape[1])))
+                
+            # # visualize mask
+            if args.inference != -1:
+                mask = process_mask(result_dict)
+                
+                
+                
+                
+                
+            # ================================== Prepare the images for visualization ==================================
             # visualize realsense
             realsense_depth_image = cv2.applyColorMap(cv2.convertScaleAbs(realsense_depth_image, alpha=0.03), cv2.COLORMAP_JET)
             realsense_depth_image = cv2.resize(realsense_depth_image, (320, 240))
@@ -708,12 +775,45 @@ if __name__ == "__main__":
             #print(realsense_depth_image.shape, realsense_color_image.shape, seek_camera_frame.shape,  senxor_temperature_map_m08.shape, MLX_temperature_map.shape,)
             interm1 = np.concatenate((realsense_depth_image, realsense_color_image, senxor_temperature_map_m08), axis=1)
             # black image: shape is 320*2 by 240
-            black_image = np.zeros((240, 320, 3), dtype=np.uint8)
-            interm2 = np.concatenate((seek_camera_frame, mask, black_image), axis=1)
-            interm1 = np.concatenate((interm1, interm2), axis=1)
-            interm1 = np.concatenate((interm1, image), axis=0)
-            final_image = interm1
+            
+            
+            
+            
+            
+            
+            
+            # ================================== arrange the images for visualization ==================================
+            if args.inference == 1:
+                black_image = np.zeros((240, 320, 3), dtype=np.uint8)
+                interm2 = np.concatenate((seek_camera_frame, mask, black_image), axis=1)
+                interm1 = np.concatenate((interm1, interm2), axis=1)
+                interm1 = np.concatenate((interm1, image), axis=0)
+                final_image = interm1
+            elif args.inference == 0: 
+                black_image = np.zeros((240, 320, 3), dtype=np.uint8)
+                interm2 = np.concatenate((seek_camera_frame, mask, black_image), axis=1)
+                interm1 = np.concatenate((interm1, interm2), axis=0)
+                interm1 = np.concatenate((interm1, image), axis=0)
+                final_image = interm1
+            else:
+                black_image = np.zeros((240, 320*2, 3), dtype=np.uint8)
+                interm2 = np.concatenate((seek_camera_frame, black_image), axis=1)
+                interm1 = np.concatenate((interm1, interm2), axis=0)
+                final_image = interm1
+                
             cv2.imshow("Final Image", final_image)
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
 
             time_lasting = time.time() - start_time
             if time_lasting > collection_duration:
