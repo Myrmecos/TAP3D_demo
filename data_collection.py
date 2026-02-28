@@ -716,34 +716,45 @@ if __name__ == "__main__":
             
 
             # ================== for visualization: 2 axes for inference and annotate, 1 axis for annotate, no axis for collection ============
+            labels1 = [f'Pred. P{i+1}' for i in range(6)]
+            colors1 = plt.colormaps.get_cmap('Set1')(np.linspace(0, 1, 6))
             if args.inference == 1:
                 ax1.clear()
                 # print(ptcloud.cpu().numpy().shape, "DDDDEBUG")
-                plot_3d_point_cloud(fig, ax1, ptcloud.cpu().numpy(),  exp_config['max_num_persons'], exp_config['max_num_points'])
+                # plot_3d_point_cloud(fig, ax1, ptcloud.cpu().numpy(),  exp_config['max_num_persons'], exp_config['max_num_points'])
+                image2 = plot_3d_point_cloud_new(ptcloud.cpu().numpy(),  exp_config['max_num_persons'], exp_config['max_num_points'], camera_height=1.3, labels=labels1, colors=colors1)
             if args.inference == 1 or args.inference == 0:
                 ax.clear()
                 pcl_gt =  concat_pcd(result_dict)
                 if pcl_gt is not None:
                     print("DEBUG: shape is:", pcl_gt.shape)
-                    plot_3d_point_cloud(fig, ax, pcl_gt.T, 1, pcl_gt.shape[0]-1)
+                    # plot_3d_point_cloud(fig, ax, pcl_gt.T, 1, pcl_gt.shape[0]-1)
+                    image1 = plot_3d_point_cloud_new(pcl_gt.T, 1, pcl_gt.shape[0]-1, camera_height=1.3, labels=labels1, colors=colors1)
                 else:
-                    plot_3d_point_cloud(fig, ax, np.zeros([3, 1*42]), 1, 42-1)
-                fig.canvas.draw()
-                # fig.canvas.flush_events()
-                image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
-                image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-                image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+                    # plot_3d_point_cloud(fig, ax, np.zeros([3, 1*42]), 1, 42-1)
+                    image1 = plot_3d_point_cloud_new(np.zeros([3, 1*42]), 1, 42-1, camera_height=1.3, labels=labels1, colors=colors1)
+                image1 = image1.astype(np.uint8)
+                image2 = image2.astype(np.uint8)
+                # fig.canvas.draw()
+                # # fig.canvas.flush_events()
+                # image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
+                # image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+                # image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+                
             # rescale image such that its width is 960, and its height-width ration remains unchanged
             if args.inference == 1:
-                cv2.putText(image, f"Ground Truth", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
-                cv2.putText(image, f"Prediction", (10 + 960, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
-                image = cv2.resize(image, (960*2, int(960 * 2 * image.shape[0] / image.shape[1])))
+                cv2.putText(image1, f"Ground Truth", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+                cv2.putText(image2, f"Prediction", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+                image1 = cv2.resize(image1, (960, int(960 * image1.shape[0] / image1.shape[1])))
+                image2 = cv2.resize(image2, (960, int(960 * image2.shape[0] / image2.shape[1])))
+                image = cv2.hconcat([image1, image2])
             elif args.inference == 0:
-                image = cv2.resize(image, (960, int(960 * image.shape[0] / image.shape[1])))
-                
+                image = cv2.resize(image1, (960, int(960 * image1.shape[0] / image1.shape[1])))
+
             # # visualize mask
             if args.inference != -1:
                 mask = process_mask(result_dict)
+                
                 
                 
                 
