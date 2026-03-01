@@ -709,7 +709,14 @@ class DataProcessor:
         
     def visualize_gt_pcd(self, fig, ax, result_dict, no_id_distinguish, use_old_plot = False):
         print("#####visualize_gt_pcd: no_id-distinguish:", no_id_distinguish)
+        
         pcl_gt =  result_dict['point_cloud_person']
+        pcl_dist = result_dict['depth_person']
+        # sort pcl_gt's element according to pcl_dist
+        indices = np.argsort(pcl_dist)
+        print(len(pcl_gt), len(indices), "DEBUG: length of pcl_gt and pcl_dist")
+        pcl_gt = [pcl_gt[i] for i in indices]
+        
         if use_old_plot:
             ax.clear()
             if pcl_gt is not None:
