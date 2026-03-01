@@ -23,6 +23,7 @@ from DataAnnotation import DataAnnotate
 import pickle as pkl
 from plot import plot_3d_point_cloud_new, remove_small_regions, mark_connected_components
 import yaml
+from image2vid import Img2Vid
 
 logging.getLogger().setLevel(logging.CRITICAL)
 # sys.path.append("/home/zx/Desktop/zx/DeepTadarDataCollect-ubuntu-data-collect/")
@@ -455,6 +456,9 @@ if __name__ == "__main__":
     parser.add_argument("--path", type=str, default=".", help="Path to the data directory")
     parser.add_argument("--use_old_plot", type=int, default=0, help="whether to use old plot or new plot")
     parser.add_argument("--no_id_distinguish", type=int, default=0, help="whether to distinguish between different persons or not")
+    parser.add_argument("--annotation", type=int, default=0, help="whether to do annotation or not")
+    parser.add_argument("--img2vid", type=int, default=0, help="whether to convert images to video or not")
+
 
     args = parser.parse_args()
     exp_config_file_name = args.exp_config_file + '.yaml'
@@ -511,6 +515,9 @@ if __name__ == "__main__":
     ax = fig.add_subplot(121, projection='3d')
     ax1 = fig.add_subplot(122, projection='3d')
 
+    if args.img2vid:
+        img2vid = Img2Vid(args.path + "/output_video.mp4")
+
     while True:
         print("===============DEBUG: no_id_distinguish:", args.no_id_distinguish)
         #print("===========debug: start collecting data, frame:", framecnt, "================")
@@ -554,6 +561,10 @@ if __name__ == "__main__":
         
         final_image = dataProcessor.prepare_sensor_visuals(realsense_color_image, realsense_depth_image, senxor_temperature_map_m08, senxor_temperature_map_m16, seek_camera_frame, pcd_image, mask, inference)
         cv2.imshow("Sensor Visuals", final_image)
+        print(final_image.shape, "SHAPE OF FINAL IMAGE")
+
+        if args.img2vid:
+            img2vid.add_frame(final_image)
 
         key = cv.waitKey(1)
         if key in [ord("q"), ord('Q'), 27]:
@@ -561,5 +572,7 @@ if __name__ == "__main__":
 
     for i in range (5):
         print('\a')
+    if args.img2vid:
+        img2vid.release()
 
 # python data_collection.py --save_data 0 --exp_config_file model3_m08 --weights weights/m08/model3_m08_thermo_pt_0819203728.pth
