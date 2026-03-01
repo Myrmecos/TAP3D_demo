@@ -575,7 +575,7 @@ class DataProcessor:
 
 
     # ================================== Inference: get the predicted point clouds ================================================
-    def get_point_clouds_pred(self, thermal_input, t2p):
+    def get_point_clouds_pred(self, thermal_input, t2p, senxor_temperature_map_m08, senxor_temperature_map_m16, seek_camera_frame):
 
         if thermal_input == "seek":
             thermal_images = np.expand_dims(seek_camera_frame, axis=0)
@@ -621,7 +621,7 @@ class DataProcessor:
         
         
         
-    def visualize_gt_pcd(self, ax, result_dict, use_old_plot = False):
+    def visualize_gt_pcd(self, fig, ax, result_dict, use_old_plot = False):
         pcl_gt =  concat_pcd(result_dict)
         if use_old_plot:
             ax.clear()
@@ -648,7 +648,7 @@ class DataProcessor:
 
         
     # ================== for visualization of point clouds: 2 axes for inference and annotate, 1 axis for annotate, no axis for collection ============
-    def visualize_pred_pcd(self, ax1, ptcloud, exp_config, use_old_plot = False):
+    def visualize_pred_pcd(self, fig, ax1, ptcloud, exp_config, use_old_plot = False):
         if use_old_plot:
             ax1.clear()
             # print(ptcloud.cpu().numpy().shape, "DDDDEBUG")
@@ -674,7 +674,7 @@ class DataProcessor:
         return image
 
 
-    def prepare_sensor_visuals(self, realsense_color_image, realsense_depth_image, senxor_temperature_map_m08, senxor_temperature_map_m16, seek_camera_frame, point_cloud_image, inference_mode):  
+    def prepare_sensor_visuals(self, realsense_color_image, realsense_depth_image, senxor_temperature_map_m08, senxor_temperature_map_m16, seek_camera_frame, point_cloud_image, mask, inference_mode):  
         # ================================== Prepare the images for visualization ==================================
         # visualize realsense
         realsense_depth_image = cv2.applyColorMap(cv2.convertScaleAbs(realsense_depth_image, alpha=0.03), cv2.COLORMAP_JET)
@@ -720,6 +720,8 @@ class DataProcessor:
         #print(realsense_depth_image.shape, realsense_color_image.shape, seek_camera_frame.shape,  senxor_temperature_map_m08.shape, MLX_temperature_map.shape,)
         interm1 = np.concatenate((realsense_depth_image, realsense_color_image, senxor_temperature_map_m08), axis=1)
         # black image: shape is 320*2 by 240
+        
+        put_text(mask, "human mask")
         
         
         
@@ -902,7 +904,7 @@ if __name__ == "__main__":
 
             # ================================== Inference: get the predicted point clouds ================================================
             if args.inference == 1:
-                ptcloud = dataProcessor.get_point_clouds_pred(thermal_input, t2p)
+                ptcloud = dataProcessor.get_point_clouds_pred(thermal_input, t2p, senxor_temperature_map_m08, senxor_temperature_map_m16, seek_camera_frame)
                 if args.save == 1:
                     dataProcessor.save_pcd_pred(ptcloud, timestampstr, pointcloudoutputdest)
             if args.inference == 1 or args.inference == 0:
@@ -921,17 +923,18 @@ if __name__ == "__main__":
             # the order should not be changed because we need to plot on two axes and obtain final image.
             pcd_image = None
             if args.inference == 1 or args.inference == 0:
-                pcd_image = dataProcessor.visualize_gt_pcd(ax, result_dict)
+                pcd_image = dataProcessor.visualize_gt_pcd(fig, ax, result_dict, use_old_plot=args.use_old_plot)
             if args.inference == 1:
                 # print(ptcloud.shape, "DDDEEEBBBUUUGGG")
                 if args.use_old_plot:
                     
-                    pcd_image = dataProcessor.visualize_pred_pcd(ax1, ptcloud, exp_config, use_old_plot=True)
+                    pcd_image = dataProcessor.visualize_pred_pcd(fig, ax1, ptcloud, exp_config, use_old_plot=True)
                 else:
                     print("DEBUG: shape of idx0:", pcd_image.shape)
-                    pcd_image = np.concatenate((pcd_image, dataProcessor.visualize_pred_pcd(ax1, ptcloud, exp_config, use_old_plot=False)), axis=1)
+                    pcd_image = np.concatenate((pcd_image, dataProcessor.visualize_pred_pcd(fig, ax1, ptcloud, exp_config, use_old_plot=False)), axis=1)
 
             # # visualize mask
+            mask = None
             if args.inference != -1:
                 mask = process_mask(result_dict)
                 
@@ -941,7 +944,7 @@ if __name__ == "__main__":
                 
             # ================================== Prepare the images for visualization ==================================
             # visualize realsense
-            final_image = dataProcessor.prepare_sensor_visuals(realsense_color_image, realsense_depth_image, senxor_temperature_map_m08, senxor_temperature_map_m16, seek_camera_frame, pcd_image, args.inference)
+            final_image = dataProcessor.prepare_sensor_visuals(realsense_color_image, realsense_depth_image, senxor_temperature_map_m08, senxor_temperature_map_m16, seek_camera_frame, pcd_image, mask, args.inference)
             cv2.imshow("Sensor Visuals", final_image)
 
 

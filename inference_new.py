@@ -54,7 +54,7 @@ class M08ToPtcloud():
                 if file.endswith(".yaml"):
                     all_yaml_files.append(file)
                     all_yaml_file_paths.append(os.path.join(root, file))
-
+        print("All configuration files found: ", all_yaml_files)
         if config_file_name not in all_yaml_files:
             print("Configuration file name is: ",config_file_name)
             print("The configuration file is not found! Please check the file name!")
