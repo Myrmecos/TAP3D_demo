@@ -4,13 +4,19 @@
 
 - step 1. plug in m08 and realsense camera
 
-- step 2. run the demo program: `python data_collection.py --exp_config_file model3_m08 --weights weights/m08/Demo_m08_thermo_pt_0826180626.pth --collection_duration 1200`. 
+- step 2. run the demo program: `python data_collection.py --exp_config_file model3_m08 --weights weights/m08/model3_m08_thermo_pt_0819203728.pth --collection_duration 1200 --thermal_input m08  --save 1 --inference 1`. 
 
     - --exp_config_file: the config file for the model, under directory `exp_configs/`
 
     - --weights: the path to the model weights, under `weights/m08/` directory
 
     - --collection_duration: the duration of data collection in seconds, default is 60s (1min)
+
+    - --thermal_input: the thermal input source, options are `m08`, `m16` or `seek`
+
+    - --save: whether to save the collected data, 1 for yes, 0 for no
+
+    - --inference: inference mode. 1 is inference+annotate, 0 is annotate only, -1 is none.
 
 
 # saving data

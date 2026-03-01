@@ -496,6 +496,239 @@ def process_depth(result_dict, h = 62, w = 80):
     depth_3channel = torch.cat([depth, user_index, fg_bg_mask], dim=1)
     return depth_3channel
 
+class DataProcessor:
+    def __init__(self):
+        pass
+    
+     # ================================== check exist and processing data ==================================
+    def process_data_raw(self, realsense_depth_image, realsense_color_image, senxor_temperature_map_m08, senxor_temperature_map_m16, seek_camera_frame):
+        if realsense_depth_image is None or realsense_color_image is None or senxor_temperature_map_m08 is None or senxor_temperature_map_m16 is None or seek_camera_frame is None:
+            return None
+        
+        print("DEBUG: shape of m08:", num_cols_m08, num_rows_m08)
+        print("DEBUG: shape of m16:", num_cols_m16, num_rows_m16)
+        
+        # preprocess frames: organize pixels and orientation
+        senxor_temperature_map_m08 = senxor_temperature_map_m08.reshape(num_cols_m08, num_rows_m08)
+        senxor_temperature_map_m08 = np.flip(senxor_temperature_map_m08, 0)
+        senxor_temperature_map_m16 = senxor_temperature_map_m16.reshape(num_cols_m16, num_rows_m16)
+        senxor_temperature_map_m16 = np.flip(senxor_temperature_map_m16, 0)
+        seek_camera_frame = np.flip(seek_camera_frame, 0)
+        seek_camera_frame = np.flip(seek_camera_frame, 1)
+        
+        # postprocess
+        if args.mi08_process:
+            senxor_temperature_map_m08 = senxor_postprocess_m.process_temperature_map(senxor_temperature_map_m08)
+        if args.mi16_process:
+            senxor_temperature_map_m16 = senxor_postprocess_m.process_temperature_map(senxor_temperature_map_m16)
+
+        return [realsense_depth_image,
+            realsense_color_image,
+            senxor_temperature_map_m08,
+            senxor_temperature_map_m16,
+            seek_camera_frame
+        ]
+
+
+
+
+
+
+
+
+
+    # ================================== saving the raw data ==================================
+    def get_timestampstr():
+        return time.strftime("%Y%m%d%H%M%S", time.localtime()) + f"{int((time.time()%1)*1e6):06d}"
+    
+    # preparing file name
+    def save_raw_data(self, realsense_depth_image,
+                      realsense_color_image, 
+                      senxor_temperature_map_m08, 
+                      senxor_temperature_map_m16, 
+                      seek_camera_frame, timestampstr):
+        
+        npyname = timestampstr + ".npy"
+        pklname = timestampstr + ".pkl"
+        
+        # timestamp format: yyyymmddhhmmssffffff
+        imgpath = os.path.join(imgdest, npyname)
+        m08path = os.path.join(m08dest, npyname)
+        m16path = os.path.join(m16dest, npyname)
+        depthpath = os.path.join(depthdest, npyname)
+        seekpath = os.path.join(seekdest, npyname)
+        
+        # depthoutputpath = os.path.join(depthoutputdest, npyname)
+        np.save(imgpath, realsense_color_image)
+        np.save(depthpath, realsense_depth_image)
+        np.save(m08path, senxor_temperature_map_m08)
+        np.save(m16path, senxor_temperature_map_m16)
+        np.save(seekpath, seek_camera_frame)
+            
+
+
+
+
+
+
+
+
+
+    # ================================== Inference: get the predicted point clouds ================================================
+    def get_point_clouds_pred(self, thermal_input, t2p):
+
+        if thermal_input == "seek":
+            thermal_images = np.expand_dims(seek_camera_frame, axis=0)
+        elif thermal_input == "m08":
+            thermal_images = np.expand_dims(senxor_temperature_map_m08, axis=0)
+        elif thermal_input == "m16":
+            thermal_images = np.expand_dims(senxor_temperature_map_m16, axis=0)
+            
+        # MODEL calling
+        thermal_images = np.expand_dims(thermal_images, axis=0)
+        thermal_images = torch.from_numpy(thermal_images.copy())
+        
+        # produce point cloud visualization for m08
+        ptcloud = t2p.thermal2ptcloud(thermal_images)
+        return ptcloud.cpu().numpy()
+
+    def get_annotation(self, realsense_color_image, realsense_depth_image, annotator):
+        # Annotate: get annotation dictionary +++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+        
+        result_dict = annotator.forward(realsense_color_image, realsense_depth_image)
+        return result_dict
+
+    def save_pcd_pred(self, ptcloud, timestampstr, pointcloudoutputdest):
+        # Inference: save predicted point clouds ============================================================
+        npyname = timestampstr + ".npy"
+        pklname = timestampstr + ".pkl"
+        # save point cloud ptcloud
+        pointcloudpath = os.path.join(pointcloudoutputdest, npyname)
+        np.save(pointcloudpath, ptcloud)
+
+    def save_annotation(self, result_dict, timestampstr, annotationdest):
+        # Inference: save annotated point clouds ============================================================
+        npyname = timestampstr + ".npy"
+        pklname = timestampstr + ".pkl"
+        # save annotation
+        annotationpath = os.path.join(annotationdest, pklname)
+        pkl.dump(result_dict, open(annotationpath, "wb"))
+
+        
+        
+        
+        
+        
+        
+        
+    def visualize_gt_pcd(self, ax, pcl_gt):
+        ax.clear()
+        pcl_gt =  concat_pcd(result_dict)
+        if pcl_gt is not None:
+            print("DEBUG: shape is:", pcl_gt.shape)
+            plot_3d_point_cloud(fig, ax, pcl_gt.T, 1, pcl_gt.shape[0]-1)
+        else:
+            plot_3d_point_cloud(fig, ax, np.zeros([3, 1*42]), 1, 42-1)
+        fig.canvas.draw()
+        # fig.canvas.flush_events()
+        image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
+        image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        image = cv2.resize(image, (960, int(960 * image.shape[0] / image.shape[1])))
+        return image
+
+        
+    # ================== for visualization of point clouds: 2 axes for inference and annotate, 1 axis for annotate, no axis for collection ============
+    def visualize_pred_pcd(self, ax1, ptcloud, exp_config):
+        ax1.clear()
+        # print(ptcloud.cpu().numpy().shape, "DDDDEBUG")
+        plot_3d_point_cloud(fig, ax1, ptcloud,  exp_config['max_num_persons'], exp_config['max_num_points'])
+        
+        fig.canvas.draw()
+        # fig.canvas.flush_events()
+        image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
+        image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+
+        # rescale image such that its width is 960, and its height-width ration remains unchanged
+        cv2.putText(image, f"Ground Truth", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+        cv2.putText(image, f"Prediction", (10 + 960, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+        image = cv2.resize(image, (960*2, int(960 * 2 * image.shape[0] / image.shape[1])))
+        return image
+
+
+    def prepare_sensor_visuals(self, realsense_color_image, realsense_depth_image, senxor_temperature_map_m08, senxor_temperature_map_m16, seek_camera_frame, point_cloud_image, inference_mode):  
+        # ================================== Prepare the images for visualization ==================================
+        # visualize realsense
+        realsense_depth_image = cv2.applyColorMap(cv2.convertScaleAbs(realsense_depth_image, alpha=0.03), cv2.COLORMAP_JET)
+        realsense_depth_image = cv2.resize(realsense_depth_image, (320, 240))
+        realsense_color_image = cv2.resize(realsense_color_image, (320, 240), interpolation=cv2.INTER_NEAREST)
+
+        # visualize m08
+        m08_min = -1024
+        m08_max = -1024
+        m08_min = np.min(senxor_temperature_map_m08)
+        m08_max = np.max(senxor_temperature_map_m08)
+        senxor_temperature_map_m08 = senxor_temperature_map_m08.astype(np.uint8)
+        senxor_temperature_map_m08 = cv2.normalize(senxor_temperature_map_m08, None, 0, 255, cv2.NORM_MINMAX)
+        senxor_temperature_map_m08 = cv2.resize(senxor_temperature_map_m08, (320, 240), interpolation=cv2.INTER_NEAREST)
+        senxor_temperature_map_m08 = cv2.applyColorMap(senxor_temperature_map_m08, cv2.COLORMAP_JET)
+        put_temp(senxor_temperature_map_m08, m08_min, m08_max, "m08")
+        
+        m16_min = -1024
+        m16_max = -1024
+        m16_min = np.min(senxor_temperature_map_m16)
+        m16_max = np.max(senxor_temperature_map_m16)
+        senxor_temperature_map_m16 = senxor_temperature_map_m16.astype(np.uint8)
+        senxor_temperature_map_m16 = cv2.normalize(senxor_temperature_map_m16, None, 0, 255, cv2.NORM_MINMAX)
+        senxor_temperature_map_m16 = cv2.resize(senxor_temperature_map_m16, (320, 240), interpolation=cv2.INTER_NEAREST)
+        senxor_temperature_map_m16 = cv2.applyColorMap(senxor_temperature_map_m16, cv2.COLORMAP_JET)
+        put_temp(senxor_temperature_map_m16, m16_min, m16_max, "m16")
+
+        # visualize seek camera
+        seek_min = -1024
+        seek_max = -1024
+        seek_min = np.min(seek_camera_frame)
+        seek_max = np.max(seek_camera_frame)
+        seek_camera_frame = seek_camera_frame.astype(np.uint8)
+        seek_camera_frame = cv2.normalize(seek_camera_frame, None, 0, 255, cv2.NORM_MINMAX)
+        seek_camera_frame = cv2.resize(seek_camera_frame, (320, 240), interpolation=cv2.INTER_NEAREST)
+        seek_camera_frame = cv2.applyColorMap(seek_camera_frame, cv2.COLORMAP_JET)
+        put_temp(seek_camera_frame, seek_min, seek_max, "seek")
+        
+        # put text on depth and color
+        put_text(realsense_depth_image, "realsense depth")
+        put_text(realsense_color_image, "realsense color")
+
+        #print(realsense_depth_image.shape, realsense_color_image.shape, seek_camera_frame.shape,  senxor_temperature_map_m08.shape, MLX_temperature_map.shape,)
+        interm1 = np.concatenate((realsense_depth_image, realsense_color_image, senxor_temperature_map_m08), axis=1)
+        # black image: shape is 320*2 by 240
+        
+        
+        
+        # ================================== arrange the images for visualization ==================================
+        if inference_mode == 1:
+            interm2 = np.concatenate((seek_camera_frame, mask, senxor_temperature_map_m16), axis=1)
+            interm1 = np.concatenate((interm1, interm2), axis=1)
+            interm1 = np.concatenate((interm1, point_cloud_image), axis=0)
+            final_image = interm1
+        elif inference_mode == 0: 
+            interm2 = np.concatenate((seek_camera_frame, mask, senxor_temperature_map_m16), axis=1)
+            interm1 = np.concatenate((interm1, interm2), axis=0)
+            interm1 = np.concatenate((interm1, point_cloud_image), axis=0)
+            final_image = interm1
+        else:
+            black_image = np.zeros((240, 320, 3), dtype=np.uint8)
+
+            interm2 = np.concatenate((seek_camera_frame, black_image, senxor_temperature_map_m16), axis=1)
+            interm1 = np.concatenate((interm1, interm2), axis=0)
+            final_image = interm1
+        return final_image
+            
+        
+
+
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
@@ -584,6 +817,7 @@ if __name__ == "__main__":
     elif args.inference == 0:
         fig = plt.figure(figsize=(12, 8))
         ax = fig.add_subplot(111, projection='3d')
+        ax1 = None
     # plt.show(block=False)
 
 
@@ -591,7 +825,7 @@ if __name__ == "__main__":
 
 
 
-
+    dataProcessor = DataProcessor()
 
 
 
@@ -618,43 +852,12 @@ if __name__ == "__main__":
         
         
         
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
 
         # ================================== check exist and processing data ==================================
         if realsense_depth_image_ori is None or realsense_color_image_ori is None or senxor_temperature_map_m08_ori is None or senxor_temperature_map_m16_ori is None or seek_camera_frame_ori is None:
             continue
         else:
-            realsense_depth_image, realsense_color_image, senxor_temperature_map_m08, senxor_temperature_map_m16, seek_camera_frame = realsense_depth_image_ori, realsense_color_image_ori, senxor_temperature_map_m08_ori, senxor_temperature_map_m16_ori, seek_camera_frame_ori
-
-            print("DEBUG: shape of m08:", num_cols_m08, num_rows_m08)
-            print("DEBUG: shape of m16:", num_cols_m16, num_rows_m16)
-            
-            # preprocess frames: organize pixels and orientation
-            senxor_temperature_map_m08 = senxor_temperature_map_m08.reshape(num_cols_m08, num_rows_m08)
-            senxor_temperature_map_m08 = np.flip(senxor_temperature_map_m08, 0)
-            senxor_temperature_map_m16 = senxor_temperature_map_m16.reshape(num_cols_m16, num_rows_m16)
-            senxor_temperature_map_m16 = np.flip(senxor_temperature_map_m16, 0)
-            seek_camera_frame = np.flip(seek_camera_frame, 0)
-            seek_camera_frame = np.flip(seek_camera_frame, 1)
-            
-            # postprocess
-            if args.mi08_process:
-                senxor_temperature_map_m08 = senxor_postprocess_m.process_temperature_map(senxor_temperature_map_m08)
-            if args.mi16_process:
-                senxor_temperature_map_m16 = senxor_postprocess_m.process_temperature_map(senxor_temperature_map_m16)
-
-
-
-
+            realsense_depth_image, realsense_color_image, senxor_temperature_map_m08, senxor_temperature_map_m16, seek_camera_frame = dataProcessor.process_data_raw(realsense_depth_image_ori, realsense_color_image_ori, senxor_temperature_map_m08_ori, senxor_temperature_map_m16_ori, seek_camera_frame_ori)
 
 
 
@@ -669,21 +872,7 @@ if __name__ == "__main__":
             npyname = timestampstr + ".npy"
             pklname = timestampstr + ".pkl"
             if args.save == 1:
-                # timestamp format: yyyymmddhhmmssffffff
-                imgpath = os.path.join(imgdest, npyname)
-                m08path = os.path.join(m08dest, npyname)
-                m16path = os.path.join(m16dest, npyname)
-                depthpath = os.path.join(depthdest, npyname)
-                seekpath = os.path.join(seekdest, npyname)
-                
-                # depthoutputpath = os.path.join(depthoutputdest, npyname)
-                np.save(imgpath, realsense_color_image)
-                np.save(depthpath, realsense_depth_image)
-                np.save(m08path, senxor_temperature_map_m08)
-                np.save(m16path, senxor_temperature_map_m16)
-                np.save(seekpath, seek_camera_frame)
-               
-            print("shape of m08:", senxor_temperature_map_m08.shape)
+                dataProcessor.save_raw_data(realsense_depth_image, realsense_color_image, senxor_temperature_map_m08, senxor_temperature_map_m16, seek_camera_frame, timestampstr)
 
 
 
@@ -695,32 +884,13 @@ if __name__ == "__main__":
 
             # ================================== Inference: get the predicted point clouds ================================================
             if args.inference == 1:
-                if thermal_input == "seek":
-                    thermal_images = np.expand_dims(seek_camera_frame, axis=0)
-                elif thermal_input == "m08":
-                    thermal_images = np.expand_dims(senxor_temperature_map_m08, axis=0)
-                elif thermal_input == "m16":
-                    thermal_images = np.expand_dims(senxor_temperature_map_m16, axis=0)
-                
-                # MODEL calling
-                thermal_images = np.expand_dims(thermal_images, axis=0)
-                thermal_images = torch.from_numpy(thermal_images.copy())
-                
-                # produce point cloud visualization for m08
-                ptcloud = t2p.thermal2ptcloud(thermal_images)
-            
-            # Annotate: get annotation dictionary +++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+                ptcloud = dataProcessor.get_point_clouds_pred(thermal_input, t2p)
+                if args.save == 1:
+                    dataProcessor.save_pcd_pred(ptcloud, timestampstr, pointcloudoutputdest)
             if args.inference == 1 or args.inference == 0:
-                result_dict = annotator.forward(realsense_color_image, realsense_depth_image)
-                
-            # Inference: save predicted point clouds ============================================================
-            if args.save == 1 and args.inference == 1:
-                annotationpath = os.path.join(annotationdest, pklname)
-                pkl.dump(result_dict, open(annotationpath, "wb"))
-
-                # save point cloud ptcloud
-                pointcloudpath = os.path.join(pointcloudoutputdest, npyname)
-                np.save(pointcloudpath, ptcloud.cpu().numpy())
+                result_dict = dataProcessor.get_annotation(realsense_color_image, realsense_depth_image, annotator)
+                if args.save == 1:
+                    dataProcessor.save_annotation(result_dict, timestampstr, annotationdest)
 
             timestamp = time.time()
             
@@ -728,35 +898,16 @@ if __name__ == "__main__":
             
             
             
-            
-            
 
             # ================== for visualization of point clouds: 2 axes for inference and annotate, 1 axis for annotate, no axis for collection ============
-            if args.inference == 1:
-                ax1.clear()
-                # print(ptcloud.cpu().numpy().shape, "DDDDEBUG")
-                plot_3d_point_cloud(fig, ax1, ptcloud.cpu().numpy(),  exp_config['max_num_persons'], exp_config['max_num_points'])
+            # the order should not be changed because we need to plot on two axes and obtain final image.
+            pcd_image = None
             if args.inference == 1 or args.inference == 0:
-                ax.clear()
-                pcl_gt =  concat_pcd(result_dict)
-                if pcl_gt is not None:
-                    print("DEBUG: shape is:", pcl_gt.shape)
-                    plot_3d_point_cloud(fig, ax, pcl_gt.T, 1, pcl_gt.shape[0]-1)
-                else:
-                    plot_3d_point_cloud(fig, ax, np.zeros([3, 1*42]), 1, 42-1)
-                fig.canvas.draw()
-                # fig.canvas.flush_events()
-                image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
-                image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-                image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-            # rescale image such that its width is 960, and its height-width ration remains unchanged
+                pcd_image = dataProcessor.visualize_gt_pcd(ax, result_dict)
             if args.inference == 1:
-                cv2.putText(image, f"Ground Truth", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
-                cv2.putText(image, f"Prediction", (10 + 960, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
-                image = cv2.resize(image, (960*2, int(960 * 2 * image.shape[0] / image.shape[1])))
-            elif args.inference == 0:
-                image = cv2.resize(image, (960, int(960 * image.shape[0] / image.shape[1])))
-                
+                # print(ptcloud.shape, "DDDEEEBBBUUUGGG")
+                pcd_image = dataProcessor.visualize_pred_pcd(ax1, ptcloud, exp_config)
+            
             # # visualize mask
             if args.inference != -1:
                 mask = process_mask(result_dict)
@@ -767,88 +918,14 @@ if __name__ == "__main__":
                 
             # ================================== Prepare the images for visualization ==================================
             # visualize realsense
-            realsense_depth_image = cv2.applyColorMap(cv2.convertScaleAbs(realsense_depth_image, alpha=0.03), cv2.COLORMAP_JET)
-            realsense_depth_image = cv2.resize(realsense_depth_image, (320, 240))
-            realsense_color_image = cv2.resize(realsense_color_image, (320, 240), interpolation=cv2.INTER_NEAREST)
+            print(realsense_depth_image, realsense_depth_image.shape, "DEEBBBUUGUGUG")
+            final_image = dataProcessor.prepare_sensor_visuals(realsense_color_image, realsense_depth_image, senxor_temperature_map_m08, senxor_temperature_map_m16, seek_camera_frame, pcd_image, args.inference)
+            cv2.imshow("Sensor Visuals", final_image)
 
-            # visualize m08
-            m08_min = -1024
-            m08_max = -1024
-            m08_min = np.min(senxor_temperature_map_m08)
-            m08_max = np.max(senxor_temperature_map_m08)
-            senxor_temperature_map_m08 = senxor_temperature_map_m08.astype(np.uint8)
-            senxor_temperature_map_m08 = cv2.normalize(senxor_temperature_map_m08, None, 0, 255, cv2.NORM_MINMAX)
-            senxor_temperature_map_m08 = cv2.resize(senxor_temperature_map_m08, (320, 240), interpolation=cv2.INTER_NEAREST)
-            senxor_temperature_map_m08 = cv2.applyColorMap(senxor_temperature_map_m08, cv2.COLORMAP_JET)
-            put_temp(senxor_temperature_map_m08, m08_min, m08_max, "m08")
-            
-            m16_min = -1024
-            m16_max = -1024
-            m16_min = np.min(senxor_temperature_map_m16)
-            m16_max = np.max(senxor_temperature_map_m16)
-            senxor_temperature_map_m16 = senxor_temperature_map_m16.astype(np.uint8)
-            senxor_temperature_map_m16 = cv2.normalize(senxor_temperature_map_m16, None, 0, 255, cv2.NORM_MINMAX)
-            senxor_temperature_map_m16 = cv2.resize(senxor_temperature_map_m16, (320, 240), interpolation=cv2.INTER_NEAREST)
-            senxor_temperature_map_m16 = cv2.applyColorMap(senxor_temperature_map_m16, cv2.COLORMAP_JET)
-            put_temp(senxor_temperature_map_m16, m16_min, m16_max, "m16")
 
-            # visualize seek camera
-            seek_min = -1024
-            seek_max = -1024
-            seek_min = np.min(seek_camera_frame)
-            seek_max = np.max(seek_camera_frame)
-            seek_camera_frame = seek_camera_frame.astype(np.uint8)
-            seek_camera_frame = cv2.normalize(seek_camera_frame, None, 0, 255, cv2.NORM_MINMAX)
-            seek_camera_frame = cv2.resize(seek_camera_frame, (320, 240), interpolation=cv2.INTER_NEAREST)
-            seek_camera_frame = cv2.applyColorMap(seek_camera_frame, cv2.COLORMAP_JET)
-            put_temp(seek_camera_frame, seek_min, seek_max, "seek")
-            
-            # put text on depth and color
-            put_text(realsense_depth_image, "realsense depth")
-            put_text(realsense_color_image, "realsense color")
-
-            #print(realsense_depth_image.shape, realsense_color_image.shape, seek_camera_frame.shape,  senxor_temperature_map_m08.shape, MLX_temperature_map.shape,)
-            interm1 = np.concatenate((realsense_depth_image, realsense_color_image, senxor_temperature_map_m08), axis=1)
-            # black image: shape is 320*2 by 240
             
             
-            
-            
-            
-            
-            
-            # ================================== arrange the images for visualization ==================================
-            if args.inference == 1:
-                interm2 = np.concatenate((seek_camera_frame, mask, senxor_temperature_map_m16), axis=1)
-                interm1 = np.concatenate((interm1, interm2), axis=1)
-                interm1 = np.concatenate((interm1, image), axis=0)
-                final_image = interm1
-            elif args.inference == 0: 
-                interm2 = np.concatenate((seek_camera_frame, mask, senxor_temperature_map_m16), axis=1)
-                interm1 = np.concatenate((interm1, interm2), axis=0)
-                interm1 = np.concatenate((interm1, image), axis=0)
-                final_image = interm1
-            else:
-                black_image = np.zeros((240, 320, 3), dtype=np.uint8)
-
-                interm2 = np.concatenate((seek_camera_frame, black_image, senxor_temperature_map_m16), axis=1)
-                interm1 = np.concatenate((interm1, interm2), axis=0)
-                final_image = interm1
-                
-            cv2.imshow("Final Image", final_image)
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
-
+            # ================================== check if we overrun ==================================
             time_lasting = time.time() - start_time
             if time_lasting > collection_duration:
                 break
