@@ -22,3 +22,8 @@ To annotate data, do `python DataAnnotation.py --sensor_name senxor_m08 --visual
 
 # collect data with timestamp as dir name under data/:
 `python data_collection.py --exp_config_file model3_m08 --weights weights/m08/model3_m08_thermo_pt_0819203728.pth --collection_duration 1200 --save 1`
+
+TODO
+2. gt pcd compare
+3. point cloud gt
+4. gt for data check

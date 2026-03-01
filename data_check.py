@@ -436,24 +436,38 @@ def plot_3d_point_cloud(fig, ax, point_cloud, max_num_persons, max_num_points, c
     # ax.view_init(elev=20, azim=-0)
 
 def process_mask(result_dict):
+    '''
+    Make a mask on white background
+    each human is assigned a color
+    '''
+    print("DEBUG: PROCESSING MASK!!!!!!!")
     mask = None
-    
+
+    # Get colors for each person
+    colors = plt.colormaps.get_cmap('Set1')(np.linspace(0, 1, result_dict['num_persons']))
     for i in range(result_dict['num_persons']):
         if mask is None:
+            # make a white mask with shape same as result_dict['depth_mask_person']
             mask = np.zeros_like(result_dict["depth_mask_person"][0])
-            
-        mask[result_dict["depth_mask_person"][0] > 0] = 255
-        mask = mask.astype(np.uint8)
+            mask[:] = 255
+            # repeat to 3 channels
+            mask = np.stack([mask] * 3, axis=-1)
+
+        mask[result_dict["depth_mask_person"][0] > 0] = (np.array(colors[i][:3])*255).astype(np.uint8)
         # print all uniq values in mask
-        print("Uniq values in mask:", np.unique(mask))
-        
-        mask = cv2.applyColorMap(mask, cv2.COLORMAP_JET)
+        # print("Uniq values in mask:", np.unique(mask))
+
+    mask = mask.astype(np.uint8)
     if mask is None:
-        mask = np.zeros((62, 80), dtype=np.uint8)
+        mask = np.zeros_like(result_dict["depth_mask_person"][0])
+        mask[:] = 255
     mask = cv2.resize(mask, (320, 240), interpolation=cv2.INTER_NEAREST)
-    mask = cv2.applyColorMap(mask, cv2.COLORMAP_JET)
+    # mask = cv2.applyColorMap(mask, cv2.COLORMAP_JET)
     # write on the top-left of the mask: "human mask"
     cv2.putText(mask, "human mask", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
+    plt.imshow(mask)
+    plt.axis('off')
+    plt.show()
     return mask
 
 if __name__ == "__main__":
@@ -499,7 +513,7 @@ if __name__ == "__main__":
     seekpaths = os.listdir(seekdest)
     pointcloudpaths = os.listdir(pointcloudoutputdest)
     annotationpaths = os.listdir(annotationdest)
-    
+
     imgpaths.sort()
     depthpaths.sort()
     m08paths.sort()
@@ -526,7 +540,7 @@ if __name__ == "__main__":
         # produce point cloud visualization for m08
         ptcloud = pointcloud
         result_dict = annotation
-        
+
 
         # for visualization only
         # if args.vis_flag:
@@ -541,7 +555,7 @@ if __name__ == "__main__":
         # plt.show()
         # rescale image such that its width is 960, and its height-width ration remains unchanged
         image = cv2.resize(image, (960, int(960 * image.shape[0] / image.shape[1])))
-        
+
         # # visualize mask
         mask = process_mask(result_dict)
 
@@ -560,13 +574,13 @@ if __name__ == "__main__":
         senxor_temperature_map_m08 = cv2.resize(senxor_temperature_map_m08, (320, 240), interpolation=cv2.INTER_NEAREST)
         senxor_temperature_map_m08 = cv2.applyColorMap(senxor_temperature_map_m08, cv2.COLORMAP_JET)
         put_temp(senxor_temperature_map_m08, m08_min, m08_max, "m08")
-        
+
         # visualize seek camera
         seek_camera_frame = seek_camera_frame.astype(np.uint8)
         seek_camera_frame = cv2.normalize(seek_camera_frame, None, 0, 255, cv2.NORM_MINMAX)
         seek_camera_frame = cv2.resize(seek_camera_frame, (320, 240), interpolation=cv2.INTER_NEAREST)
         seek_camera_frame = cv2.applyColorMap(seek_camera_frame, cv2.COLORMAP_JET)
-        
+
         #print(realsense_depth_image.shape, realsense_color_image.shape, seek_camera_frame.shape,  senxor_temperature_map_m08.shape, MLX_temperature_map.shape,)
         interm1 = np.concatenate((realsense_depth_image, realsense_color_image, senxor_temperature_map_m08), axis=1)
         # black image: shape is 320*2 by 240
@@ -575,7 +589,7 @@ if __name__ == "__main__":
         interm1 = np.concatenate((interm1, interm2), axis=0)
         interm1 = np.concatenate((interm1, image), axis=0)
         final_image = interm1
-        
+
         cv2.imshow("Final Image", final_image)
         # labels1 = [f'Pred. P{i+1}' for i in range(exp_config['max_num_persons'])]
         # colors1 = plt.cm.summer(np.linspace(0, 1, exp_config['max_num_persons']))
