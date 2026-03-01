@@ -663,7 +663,7 @@ class DataProcessor:
             colors1 = plt.colormaps.get_cmap('Set1')(np.linspace(0, 1, 6))
             if pcl_gt is None:
                 pcl_gt = np.zeros([1*6006, 3])
-            image = plot_3d_point_cloud_new(pcl_gt.T, 1, pcl_gt.shape[0]-1, camera_height=1.3, labels=labels1, colors=colors1, no_id_distinguish=no_id_distinguish)
+            image = plot_3d_point_cloud_new(pcl_gt, len(pcl_gt), -1, camera_height=1.3, labels=labels1, colors=colors1, no_id_distinguish=no_id_distinguish, regularSpacing=False)
             image = cv2.resize(image, (960, int(960 * image.shape[0] / image.shape[1])))
             put_text(image, "Ground Truth")
         return image

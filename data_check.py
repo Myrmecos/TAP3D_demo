@@ -548,7 +548,7 @@ if __name__ == "__main__":
             pcd_image = dataProcessor.visualize_pred_pcd(fig, ax1, ptcloud, exp_config, use_old_plot=True, no_id_distinguish=args.no_id_distinguish)
         else:
             print("DEBUG: shape of idx0:", pcd_image.shape)
-            pcd_image = np.concatenate((pcd_image, dataProcessor.visualize_pred_pcd(ax1, ptcloud, exp_config, use_old_plot=False)), axis=1, no_id_distinguish=args.no_id_distinguish)
+            pcd_image = np.concatenate((pcd_image, dataProcessor.visualize_pred_pcd(fig, ax1, ptcloud, exp_config, use_old_plot=False, no_id_distinguish=args.no_id_distinguish)), axis=1)
         #break
         
         mask = process_mask(result_dict)

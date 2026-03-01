@@ -4,7 +4,7 @@
 
 - step 1. plug in m08 and realsense camera
 
-- step 2. run the demo program: `python data_collection.py --exp_config_file model3_m08 --weights weights/m08/model3_m08_thermo_pt_0819203728.pth --collection_duration 1200 --thermal_input m08  --save 1 --inference 1`. 
+- step 2. run the demo program: `python data_collection.py --exp_config_file model3_m08 --weights weights/m08/model3_m08_thermo_pt_0819203728.pth --collection_duration 1200 --thermal_input m08  --save 0 --inference 0 --use_old_plot 1`. 
 
     - --exp_config_file: the config file for the model, under directory `exp_configs/`
 
@@ -18,16 +18,22 @@
 
     - --inference: inference mode. 1 is inference+annotate, 0 is annotate only, -1 is none.
 
+    - --use_old_plot: whether to use the old plotting method, 1 for yes, 0 for no.
+
 
 # saving data
 To save data to data/ folder, do: `python data_collection.py --exp_config_file model3_m08 --weights weights/m08/Demo_m08_thermo_pt_0826180626.pth --collection_duration 1200 --save 1 --save_dest data/entry0`
 
+# visualizing, annotating and inferencing saved data:
+`python data_check.py --path /home/zx/Desktop/zx/TAP3D_demo/data/test_multi --exp_config_file model3_m08 --weights weights/m08/model3_m08_thermo_pt_0819203728.pth --thermal_input m08 --use_old_plot 1 --no_id_distinguish 1`
 
 # annotating data
 To annotate data, do `python DataAnnotation.py --sensor_name senxor_m08 --visualization_flag 1 --raw_data_folder data`
 
 # collect data with timestamp as dir name under data/:
 `python data_collection.py --exp_config_file model3_m08 --weights weights/m08/model3_m08_thermo_pt_0819203728.pth --collection_duration 1200 --save 1`
+
+
 
 TODO
 2. gt pcd compare

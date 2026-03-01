@@ -269,9 +269,14 @@ def plot_3d_point_cloud_new(
             c = colors[person_idx]
             person_clouds.append((pts, c))
             all_points.append(pts)
+            
     else: # point_cloud is a list
         idx = 0
         for point_cloud_individual in point_cloud:
+            print(colors)
+            print(idx)
+            # let it be x, z, -y
+            point_cloud_individual = np.stack([point_cloud_individual[:, 0], point_cloud_individual[:, 2], -point_cloud_individual[:, 1]], axis=1)
             person_clouds.append((point_cloud_individual, colors[idx]))
             all_points.append(point_cloud_individual)
             idx += 1
