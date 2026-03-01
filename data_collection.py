@@ -27,6 +27,9 @@ from plot import plot_3d_point_cloud_new, remove_small_regions, mark_connected_c
 cnt = 0
 logging.getLogger().setLevel(logging.CRITICAL)
 # sys.path.append("/home/zx/Desktop/zx/DeepTadarDataCollect-ubuntu-data-collect/")
+
+colors = ['red', 'blue', 'green', 'orange', 'purple', 'gray']
+
 import seekcamera
 from seekcamera import (
     SeekCameraIOType,
@@ -405,7 +408,7 @@ def plot_3d_point_cloud(fig, ax, point_cloud, max_num_persons = 0, max_num_point
 
     print("!!!!!!!!!!!!!DEBUG: no_id_distinguish:", no_id_distinguish)
     plot_camera(ax)
-    colors = ['red', 'blue', 'green', 'orange', 'purple', 'gray']
+    global colors
     if no_id_distinguish:
         colors = ['red']*6
         
@@ -469,18 +472,37 @@ def process_mask(result_dict):
     '''
     print("DEBUG: PROCESSING MASK!!!!!!!")
     mask = None
+    
+    pcl_gt =  result_dict['depth_mask_person']
+    pcl_dist = result_dict['depth_person']
+    
+    # sort pcl_gt's element according to pcl_dist
+    indices = np.argsort(pcl_dist)
+    # pcl_gt = [pcl_gt[i] for i in indices]
+        
 
     # Get colors for each person
-    colors = plt.colormaps.get_cmap('Set1')(np.linspace(0, 1, result_dict['num_persons']))
+    colors = ['red', 'blue', 'green', 'orange', 'purple']
+    color_map = {
+        'red': (255, 0, 0),
+        'blue': (0, 0, 255),
+        'green': (0, 255, 0),
+        'orange': (255, 165, 0),
+        'purple': (128, 0, 128)
+    }
+    
     for i in range(result_dict['num_persons']):
+        target = pcl_gt[indices[i]]
         if mask is None:
             # make a white mask with shape same as result_dict['depth_mask_person']
-            mask = np.zeros_like(result_dict["depth_mask_person"][0])
+            mask = np.zeros_like(target)
             mask[:] = 255
             # repeat to 3 channels
             mask = np.stack([mask] * 3, axis=-1)
 
-        mask[result_dict["depth_mask_person"][i] > 0] = (np.array(colors[0][:3])*255).astype(np.uint8)
+        mask[target > 0] = color_map[colors[i]] # assign the i-th color in the global color array (which contains strings of color). we need only a value. mask and target are both 2d arrays
+        
+        
 
     if mask is None:
         mask = np.ones((240, 320, 3), dtype=np.uint8)*255
