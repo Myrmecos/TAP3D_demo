@@ -100,6 +100,12 @@ class M08ToPtcloud():
             forground_background_mask = (indicator > 0.5).float()
             depthPred = torch.cat([depth, indicator, forground_background_mask], dim=1)
             
+            print(depthPred.shape, "DEBUG=====================================")
+            print(depth)
+            print(indicator)
+            print(forground_background_mask)
+            # save depth to depth.npy
+            
         return depthPred
 
     def depth2ptcloud(self, depth):

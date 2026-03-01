@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 import logging
 from DataAnnotation import DataAnnotate
 import pickle as pkl
-from plot import plot_3d_point_cloud_new
+from plot import plot_3d_point_cloud_new, remove_small_regions, mark_connected_components
 import yaml
 
 logging.getLogger().setLevel(logging.CRITICAL)
@@ -542,7 +542,6 @@ if __name__ == "__main__":
 
         # visualize point cloud
         pcd_image = dataProcessor.visualize_gt_pcd(fig, ax, result_dict, use_old_plot=args.use_old_plot, no_id_distinguish=args.no_id_distinguish)
-        # print(ptcloud.shape, "DDDEEEBBBUUUGGG")
         if args.use_old_plot:
 
             pcd_image = dataProcessor.visualize_pred_pcd(fig, ax1, ptcloud, exp_config, use_old_plot=True, no_id_distinguish=args.no_id_distinguish)

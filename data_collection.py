@@ -23,8 +23,8 @@ import matplotlib.pyplot as plt
 import logging
 from DataAnnotation import DataAnnotate
 import pickle as pkl
-from plot import plot_3d_point_cloud_new
-
+from plot import plot_3d_point_cloud_new, remove_small_regions, mark_connected_components
+cnt = 0
 logging.getLogger().setLevel(logging.CRITICAL)
 # sys.path.append("/home/zx/Desktop/zx/DeepTadarDataCollect-ubuntu-data-collect/")
 import seekcamera
@@ -588,11 +588,73 @@ class DataProcessor:
 
 
 
+    # process depth mask, to re-assign id or others
+    def process_depth(self, depth_ori, no_id=False):
+        '''
+        Take a depth map of shape (1, 3, x, y)
+        returns a depth map of shape (1, 3, x, y) that is cleaned
+        no_id: all human assigned an id of 1
+        '''
+        depth = depth_ori.cpu().numpy()
+        depth, indicator, foreground_background_mask = depth[0, 0], depth[0, 1], depth[0, 2]
+        print(depth.shape, indicator.shape, foreground_background_mask.shape, "DEBUG: all, before removing small regions")
+        
+        foreground_background_mask = remove_small_regions(foreground_background_mask)
+        print(depth.shape, indicator.shape, foreground_background_mask.shape, "DEBUG: all, after removing small regions")
+        depth[~foreground_background_mask] = 0
+        if no_id:
+            indicator = foreground_background_mask
+        else:
+            # indicator[~foreground_background_mask] = 0
+            indicator = mark_connected_components(foreground_background_mask)
+            # indicator now contains 0 for background, 1 for person 1, 2 for person 2...
+            # now we want to re-assign the ids according to the depth. The closer person will be assigned a smaller id.
+            unique_ids = np.unique(indicator)
+            depth_lst = []
+            for uid in unique_ids:
+                if uid == 0:
+                    continue
+                # find the pixels belonging to this uid
+                mask = (indicator == uid)
+                # find the minimum depth value among these pixels
+                mean_depth = depth[mask].mean()
+                # assign this min depth value to the corresponding pixels in the indicator
+                depth_lst.append([mean_depth, uid])
+            depth_lst.sort()  # sort by depth, ascending
+            
+            new_indicator = np.zeros_like(indicator)
+            for i, (d, uid) in enumerate(depth_lst):
+                new_indicator[indicator == uid] = i + 1
+            indicator = new_indicator
 
+        # # round indicator values to nearest int
+        # indicator = np.round(indicator).astype(np.int32)
 
+        print(depth.shape, indicator.shape, foreground_background_mask.shape, "DEBUG: all, after removing small regions")
+        depth = torch.from_numpy(depth).float()  # (1, 1, H, W)
+        indicator = torch.from_numpy(indicator).float()
+        foreground_background_mask = torch.from_numpy(foreground_background_mask.copy())
+        
+    
+        # Move back to original device
+        device = depth_ori.device
+        depth = depth.to(device).unsqueeze(0).unsqueeze(0)
+        indicator = indicator.to(device).unsqueeze(0).unsqueeze(0)
+        foreground_background_mask = foreground_background_mask.to(device).unsqueeze(0).unsqueeze(0)
 
-
-
+        res = torch.cat([depth, indicator, foreground_background_mask], dim=1)
+        
+        # global cnt
+        # if cnt == 10:
+        #     time.sleep(1)
+        #     np.save("depth.npy", depth.cpu().numpy()[0, 0])
+        #     np.save("indicator.npy", indicator.cpu().numpy()[0, 0])
+        #     np.save("forground_background_mask.npy", forground_background_mask.cpu().numpy()[0, 0])
+        #     exit(0)
+            
+        # cnt += 1
+        return res
+        
 
     # ================================== Inference: get the predicted point clouds ================================================
     def get_point_clouds_pred(self, thermal_input, t2p, senxor_temperature_map_m08, senxor_temperature_map_m16, seek_camera_frame):
@@ -609,7 +671,11 @@ class DataProcessor:
         thermal_images = torch.from_numpy(thermal_images.copy())
         
         # produce point cloud visualization for m08
-        ptcloud = t2p.thermal2ptcloud(thermal_images)
+        # ptcloud = t2p.thermal2ptcloud(thermal_images)
+        depth = t2p.thermal2depth(thermal_images)
+        # depth: depth, nidicator, foreground_background_mask
+        depth = self.process_depth(depth)
+        ptcloud = t2p.depth2ptcloud(depth)
         return ptcloud.cpu().numpy()
 
     def get_annotation(self, realsense_color_image, realsense_depth_image, annotator):
