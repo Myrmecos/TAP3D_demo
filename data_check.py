@@ -458,7 +458,7 @@ if __name__ == "__main__":
     parser.add_argument("--no_id_distinguish", type=int, default=0, help="whether to distinguish between different persons or not")
     parser.add_argument("--annotation", type=int, default=0, help="whether to do annotation or not")
     parser.add_argument("--img2vid", type=int, default=0, help="whether to convert images to video or not")
-    parser.add_argument("--inference_mode", type=int, default=-1, help="inference mode (-1: no pred/annotate, 0: annotation, 1: annotation + pred)")
+    parser.add_argument("--vis_mode", type=int, default=-1, help="inference mode (-1: no pred/annotate, 0: annotation, 1: annotation + pred)")
     parser.add_argument("--data_processed", type=int, default=0, help="whether the data has been annotated and processed")
 
 
@@ -497,12 +497,12 @@ if __name__ == "__main__":
     pointcloudpaths.sort()
     annotationpaths.sort()
     
-    # inference_mode and annotation/inference status
-    inference_mode_switch = {
+    # vis_mode and annotation/inference status
+    vis_mode_switch = {
         -1: (False, False),
         1: (True, True)
     }
-    show_annotation, show_inference = inference_mode_switch[args.inference_mode]
+    show_annotation, show_inference = vis_mode_switch[args.vis_mode]
     inferenced, annotated = False, False
     if args.data_processed:
         inferenced, annotated = True, True
@@ -567,7 +567,7 @@ if __name__ == "__main__":
         pcd_image = None
         mask = None
         # visualize point cloud
-        if args.inference_mode == 1:
+        if args.vis_mode == 1:
             pcd_image = dataProcessor.visualize_gt_pcd(fig, ax, result_dict, use_old_plot=args.use_old_plot, no_id_distinguish=args.no_id_distinguish)
             if args.use_old_plot:
                 pcd_image = dataProcessor.visualize_pred_pcd(fig, ax1, ptcloud, exp_config, use_old_plot=True, no_id_distinguish=args.no_id_distinguish)
@@ -578,7 +578,7 @@ if __name__ == "__main__":
             
             mask = process_mask(result_dict)
 
-        final_image = dataProcessor.prepare_sensor_visuals(realsense_color_image, realsense_depth_image, senxor_temperature_map_m08, senxor_temperature_map_m16, seek_camera_frame, pcd_image, mask, args.inference_mode)
+        final_image = dataProcessor.prepare_sensor_visuals(realsense_color_image, realsense_depth_image, senxor_temperature_map_m08, senxor_temperature_map_m16, seek_camera_frame, pcd_image, mask, args.vis_mode)
         cv2.imshow("Sensor Visuals", final_image)
         print(final_image.shape, "SHAPE OF FINAL IMAGE")
 
