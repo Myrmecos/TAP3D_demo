@@ -461,9 +461,7 @@ def process_mask(result_dict):
             # repeat to 3 channels
             mask = np.stack([mask] * 3, axis=-1)
 
-        mask[result_dict["depth_mask_person"][0] > 0] = (np.array(colors[i][:3])*255).astype(np.uint8)
-        # print all uniq values in mask
-        # print("Uniq values in mask:", np.unique(mask))
+        mask[result_dict["depth_mask_person"][i] > 0] = (np.array(colors[0][:3])*255).astype(np.uint8)
 
     if mask is None:
         mask = np.ones((240, 320, 3), dtype=np.uint8)*255

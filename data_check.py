@@ -435,43 +435,7 @@ def plot_3d_point_cloud(fig, ax, point_cloud, max_num_persons, max_num_points, c
     # ans:
     # ax.view_init(elev=20, azim=-0)
 
-def process_mask(result_dict):
-    '''
-    Make a mask on white background
-    each human is assigned a color
-    '''
-    print("DEBUG: PROCESSING MASK!!!!!!!")
-    mask = None
-
-    # Get colors for each person
-    colors = plt.colormaps.get_cmap('Set1')(np.linspace(0, 1, result_dict['num_persons']))
-    for i in range(result_dict['num_persons']):
-        if mask is None:
-            # make a white mask with shape same as result_dict['depth_mask_person']
-            mask = np.zeros_like(result_dict["depth_mask_person"][0])
-            mask[:] = 255
-            # repeat to 3 channels
-            mask = np.stack([mask] * 3, axis=-1)
-
-        mask[result_dict["depth_mask_person"][0] > 0] = (np.array(colors[i][:3])*255).astype(np.uint8)
-        # print all uniq values in mask
-        # print("Uniq values in mask:", np.unique(mask))
-
-    
-    if mask is None:
-        mask = np.ones((240, 320, 3), dtype=np.uint8)*255
-        
-    mask = mask.astype(np.uint8)
-    mask = cv2.resize(mask, (320, 240), interpolation=cv2.INTER_NEAREST)
-    # mask = cv2.applyColorMap(mask, cv2.COLORMAP_JET)
-    # write on the top-left of the mask: "human mask"
-    cv2.putText(mask, "human mask", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
-    plt.imshow(mask)
-    plt.axis('off')
-    plt.show()
-    return mask
-
-from data_collection import DataProcessor
+from data_collection import DataProcessor, process_mask
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
