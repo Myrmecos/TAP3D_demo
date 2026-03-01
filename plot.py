@@ -221,7 +221,6 @@ def plot_3d_point_cloud_new(
     """
 
     # ---- sanity / format ----
-    pc = np.asarray(point_cloud)
     # if pc.ndim != 2 or pc.shape[0] < 3:
     #     raise ValueError(f"point_cloud must be shaped like (3, M). Got {pc.shape}")
 
@@ -232,9 +231,10 @@ def plot_3d_point_cloud_new(
     
     if no_id_distinguish:
         colors = [colors[0]] * max_num_persons  # use the same color for all persons if no_id_distinguish is True
-    print("COLORS: ", colors)
+    # print("COLORS: ", colors)
 
     if regularSpacing:
+        pc = np.asarray(point_cloud)
         for person_idx in range(max_num_persons):
             start_idx = person_idx * points_per_person
             end_idx = start_idx + points_per_person

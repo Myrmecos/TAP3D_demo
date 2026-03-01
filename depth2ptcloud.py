@@ -197,7 +197,7 @@ class DepthMask2PointCloudFast(nn.Module):
             return point_cloud[indices].T
 
 
-def plot_3d_point_cloud(point_cloud, max_num_persons, max_num_points, camera_height=1, elev=15, azim=-45, ax=None, threshold=0.5, s= 10):
+def plot_3d_point_cloud(point_cloud, max_num_persons = 0, max_num_points = 0, camera_height=1, elev=15, azim=-45, ax=None, threshold=0.5, s= 10, regularSpacing = True):
     points_per_person = max_num_points + 1
     scatter_ret = None
     
@@ -243,19 +243,37 @@ def plot_3d_point_cloud(point_cloud, max_num_persons, max_num_points, camera_hei
     plot_camera(ax)
     # colors = plt.cm.jet(np.linspace(0, 1, max_num_persons))
     # Plot points for each person
-    for person_idx in range(max_num_persons):
-        # Extract points for this person (assuming each person has max_num_points)
-        start_idx = person_idx * points_per_person
-        end_idx = start_idx + points_per_person
-        
-        indicator_idx = (person_idx + 1) * points_per_person - 1
-        #print(f"point_cloud shape: {point_cloud.shape}")
-        #print(f"point_cloud indicator point at point_cloud[0, {indicator_idx}]: {point_cloud[0, indicator_idx]}")
-        indicator_point = point_cloud[0, indicator_idx]
-        if indicator_point > threshold:
-            # Get points for this person
-            person_points = point_cloud[ :, start_idx:end_idx]
+    if regularSpacing:
+        for person_idx in range(max_num_persons):
+            # Extract points for this person (assuming each person has max_num_points)
+            start_idx = person_idx * points_per_person
+            end_idx = start_idx + points_per_person
             
+            indicator_idx = (person_idx + 1) * points_per_person - 1
+            #print(f"point_cloud shape: {point_cloud.shape}")
+            #print(f"point_cloud indicator point at point_cloud[0, {indicator_idx}]: {point_cloud[0, indicator_idx]}")
+            indicator_point = point_cloud[0, indicator_idx]
+            if indicator_point > threshold:
+                # Get points for this person
+                person_points = point_cloud[ :, start_idx:end_idx]
+                
+                # Reshape to get individual 3D points
+                x = person_points[0, :]
+                y = person_points[1, :]
+                z = person_points[2, :]
+                
+                # Filter out points where all coordinates are 0
+                valid_points = ~((x < 5) & (y < 5) & (z < 5) & (x > -5) & (y > -5) & (z > -5))
+                x_valid = x[valid_points]
+                y_valid = y[valid_points]
+                y_valid = -y_valid  
+                z_valid = z[valid_points]
+                
+                if len(x_valid) > 0:  # Only plot if there are valid points
+                    scatter_ret = ax.scatter(x_valid, z_valid, y_valid,
+                            label="", alpha=0.5, s=s, c="red")
+    else:
+        for person_points in point_cloud:
             # Reshape to get individual 3D points
             x = person_points[0, :]
             y = person_points[1, :]

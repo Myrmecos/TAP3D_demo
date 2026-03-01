@@ -14,7 +14,7 @@ from pprint import pprint
 import argparse
 import pyrealsense2 as rs
 import copy
-from inference_new import M08ToPtcloud, plot_3d_point_cloud
+from inference_new import M08ToPtcloud
 import torch
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import matplotlib
@@ -364,7 +364,7 @@ class image_buffer():
         self.read %= self.buffer_size
         return self.buffer[self.read]
 
-def plot_3d_point_cloud(fig, ax, point_cloud, max_num_persons, max_num_points, no_id_distinguish, camera_height=1, elev=15, azim=-45, threshold=0.1, s= 10):
+def plot_3d_point_cloud(fig, ax, point_cloud, max_num_persons = 0, max_num_points = 0, no_id_distinguish = False, threshold=0.1, s= 10, regularSpacing = True):
     points_per_person = max_num_points + 1
     scatter_ret = None
 
@@ -410,18 +410,37 @@ def plot_3d_point_cloud(fig, ax, point_cloud, max_num_persons, max_num_points, n
         colors = ['red']*6
         
     # Plot points for each person
-    for person_idx in range(max_num_persons):
-        # Extract points for this person (assuming each person has max_num_points)
-        start_idx = person_idx * points_per_person
-        end_idx = start_idx + points_per_person
+    if regularSpacing:
+        for person_idx in range(max_num_persons):
+            # Extract points for this person (assuming each person has max_num_points)
+            start_idx = person_idx * points_per_person
+            end_idx = start_idx + points_per_person
 
-        indicator_idx = (person_idx + 1) * points_per_person - 1
-        indicator_point = point_cloud[0, indicator_idx]
-        if indicator_point > threshold:
-            # Get points for this person
-            person_points = point_cloud[ :, start_idx:end_idx]
+            indicator_idx = (person_idx + 1) * points_per_person - 1
+            indicator_point = point_cloud[0, indicator_idx]
+            if indicator_point > threshold:
+                # Get points for this person
+                person_points = point_cloud[ :, start_idx:end_idx]
 
+                # Reshape to get individual 3D points
+                x = person_points[0, :]
+                y = person_points[1, :]
+                z = person_points[2, :]
+
+                # Filter out points where all coordinates are 0
+                valid_points = ~((x < 5) & (y < 5) & (z < 5) & (x > -5) & (y > -5) & (z > -5))
+                x_valid = x[valid_points]
+                y_valid = y[valid_points]
+                y_valid = -y_valid
+                z_valid = z[valid_points]
+
+                if len(x_valid) > 0:  # Only plot if there are valid points
+                    scatter_ret = ax.scatter(x_valid, z_valid, y_valid,
+                            label="", alpha=0.5, s=s, c=colors[person_idx])
+    else:
+        for person_idx, person_points in enumerate(point_cloud):
             # Reshape to get individual 3D points
+            person_points = person_points.T
             x = person_points[0, :]
             y = person_points[1, :]
             z = person_points[2, :]
@@ -623,15 +642,16 @@ class DataProcessor:
         
         
     def visualize_gt_pcd(self, fig, ax, result_dict, no_id_distinguish, use_old_plot = False):
-        print("#####DEBUG: no_id-distinguish:", no_id_distinguish)
-        pcl_gt =  concat_pcd(result_dict)
+        print("#####visualize_gt_pcd: no_id-distinguish:", no_id_distinguish)
+        pcl_gt =  result_dict['point_cloud_person']
         if use_old_plot:
             ax.clear()
             if pcl_gt is not None:
-                print("DEBUG: shape is:", pcl_gt.shape)
-                plot_3d_point_cloud(fig, ax, pcl_gt.T, 1, pcl_gt.shape[0]-1, no_id_distinguish)
+                # print("DEBUG: shape is:", pcl_gt.shape)
+                print("visualize_gt_pcd, before calling plot_3d_pcd:")
+                plot_3d_point_cloud(fig, ax, pcl_gt, no_id_distinguish=no_id_distinguish, regularSpacing=False)
             else:
-                plot_3d_point_cloud(fig, ax, np.zeros([3, 1*42]), 1, 42-1, no_id_distinguish)
+                plot_3d_point_cloud(fig, ax, np.zeros([[3, 1*42]]), no_id_distinguish=no_id_distinguish, regularSpacing=False)
             fig.canvas.draw()
             # fig.canvas.flush_events()
             image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
@@ -926,15 +946,15 @@ if __name__ == "__main__":
             # the order should not be changed because we need to plot on two axes and obtain final image.
             pcd_image = None
             if args.inference == 1 or args.inference == 0:
-                pcd_image = dataProcessor.visualize_gt_pcd(fig, ax, result_dict, use_old_plot=args.use_old_plot)
+                pcd_image = dataProcessor.visualize_gt_pcd(fig, ax, result_dict, use_old_plot=args.use_old_plot, no_id_distinguish=True)
             if args.inference == 1:
                 # print(ptcloud.shape, "DDDEEEBBBUUUGGG")
                 if args.use_old_plot:
                     
-                    pcd_image = dataProcessor.visualize_pred_pcd(fig, ax1, ptcloud, exp_config, use_old_plot=True)
+                    pcd_image = dataProcessor.visualize_pred_pcd(fig, ax1, ptcloud, exp_config, use_old_plot=True, no_id_distinguish=True)
                 else:
                     print("DEBUG: shape of idx0:", pcd_image.shape)
-                    pcd_image = np.concatenate((pcd_image, dataProcessor.visualize_pred_pcd(fig, ax1, ptcloud, exp_config, use_old_plot=False)), axis=1)
+                    pcd_image = np.concatenate((pcd_image, dataProcessor.visualize_pred_pcd(fig, ax1, ptcloud, exp_config, use_old_plot=False, no_id_distinguish=True)), axis=1)
 
             # # visualize mask
             mask = None
