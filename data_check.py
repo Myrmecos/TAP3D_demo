@@ -490,6 +490,7 @@ if __name__ == "__main__":
     parser.add_argument("--thermal_input", type=str, default="m08", help="choose from m08, m16 and seek")
     parser.add_argument("--path", type=str, default=".", help="Path to the data directory")
     parser.add_argument("--use_old_plot", type=int, default=0, help="whether to use old plot or new plot")
+    parser.add_argument("--no_id_distinguish", type=int, default=0, help="whether to distinguish between different persons or not")
 
     args = parser.parse_args()
     exp_config_file_name = args.exp_config_file + '.yaml'
@@ -547,6 +548,7 @@ if __name__ == "__main__":
     ax1 = fig.add_subplot(122, projection='3d')
 
     while True:
+        print("===============DEBUG: no_id_distinguish:", args.no_id_distinguish)
         #print("===========debug: start collecting data, frame:", framecnt, "================")
         framecnt += 1
         # load all the data from path, one by one
@@ -575,14 +577,14 @@ if __name__ == "__main__":
         
 
         # visualize point cloud
-        pcd_image = dataProcessor.visualize_gt_pcd(fig, ax, result_dict, use_old_plot=args.use_old_plot)
+        pcd_image = dataProcessor.visualize_gt_pcd(fig, ax, result_dict, use_old_plot=args.use_old_plot, no_id_distinguish=args.no_id_distinguish)
         # print(ptcloud.shape, "DDDEEEBBBUUUGGG")
         if args.use_old_plot:
 
-            pcd_image = dataProcessor.visualize_pred_pcd(fig, ax1, ptcloud, exp_config, use_old_plot=True)
+            pcd_image = dataProcessor.visualize_pred_pcd(fig, ax1, ptcloud, exp_config, use_old_plot=True, no_id_distinguish=args.no_id_distinguish)
         else:
             print("DEBUG: shape of idx0:", pcd_image.shape)
-            pcd_image = np.concatenate((pcd_image, dataProcessor.visualize_pred_pcd(ax1, ptcloud, exp_config, use_old_plot=False)), axis=1)
+            pcd_image = np.concatenate((pcd_image, dataProcessor.visualize_pred_pcd(ax1, ptcloud, exp_config, use_old_plot=False)), axis=1, no_id_distinguish=args.no_id_distinguish)
         #break
         
         mask = process_mask(result_dict)

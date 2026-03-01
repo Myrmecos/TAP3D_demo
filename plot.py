@@ -204,7 +204,8 @@ def plot_3d_point_cloud_new(
     floor_z_mode="auto",  # "auto" | "zero" | float
     save=False,             
     save_name=None, 
-    regularSpacing = True
+    regularSpacing = True, 
+    no_id_distinguish = False
     ):
     """
     New (PyVista) visualization that mimics a Unity-like scene:
@@ -228,6 +229,10 @@ def plot_3d_point_cloud_new(
 
     all_points = []         # gather all valid points across persons for bounds
     person_clouds = []      # list of (points Nx3, color)
+    
+    if no_id_distinguish:
+        colors = [colors[0]] * max_num_persons  # use the same color for all persons if no_id_distinguish is True
+    print("COLORS: ", colors)
 
     if regularSpacing:
         for person_idx in range(max_num_persons):

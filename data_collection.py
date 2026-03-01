@@ -364,7 +364,7 @@ class image_buffer():
         self.read %= self.buffer_size
         return self.buffer[self.read]
 
-def plot_3d_point_cloud(fig, ax, point_cloud, max_num_persons, max_num_points, camera_height=1, elev=15, azim=-45, threshold=0.1, s= 10):
+def plot_3d_point_cloud(fig, ax, point_cloud, max_num_persons, max_num_points, no_id_distinguish, camera_height=1, elev=15, azim=-45, threshold=0.1, s= 10):
     points_per_person = max_num_points + 1
     scatter_ret = None
 
@@ -403,9 +403,12 @@ def plot_3d_point_cloud(fig, ax, point_cloud, max_num_persons, max_num_points, c
             alpha=1
         ))
 
-
+    print("!!!!!!!!!!!!!DEBUG: no_id_distinguish:", no_id_distinguish)
     plot_camera(ax)
-    colors = ['red', 'blue', 'green', 'orange', 'purple']
+    colors = ['red', 'blue', 'green', 'orange', 'purple', 'gray']
+    if no_id_distinguish:
+        colors = ['red']*6
+        
     # Plot points for each person
     for person_idx in range(max_num_persons):
         # Extract points for this person (assuming each person has max_num_points)
@@ -621,15 +624,16 @@ class DataProcessor:
         
         
         
-    def visualize_gt_pcd(self, fig, ax, result_dict, use_old_plot = False):
+    def visualize_gt_pcd(self, fig, ax, result_dict, no_id_distinguish, use_old_plot = False):
+        print("#####DEBUG: no_id-distinguish:", no_id_distinguish)
         pcl_gt =  concat_pcd(result_dict)
         if use_old_plot:
             ax.clear()
             if pcl_gt is not None:
                 print("DEBUG: shape is:", pcl_gt.shape)
-                plot_3d_point_cloud(fig, ax, pcl_gt.T, 1, pcl_gt.shape[0]-1)
+                plot_3d_point_cloud(fig, ax, pcl_gt.T, 1, pcl_gt.shape[0]-1, no_id_distinguish)
             else:
-                plot_3d_point_cloud(fig, ax, np.zeros([3, 1*42]), 1, 42-1)
+                plot_3d_point_cloud(fig, ax, np.zeros([3, 1*42]), 1, 42-1, no_id_distinguish)
             fig.canvas.draw()
             # fig.canvas.flush_events()
             image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
@@ -641,19 +645,20 @@ class DataProcessor:
             colors1 = plt.colormaps.get_cmap('Set1')(np.linspace(0, 1, 6))
             if pcl_gt is None:
                 pcl_gt = np.zeros([1*6006, 3])
-            image = plot_3d_point_cloud_new(pcl_gt.T, 1, pcl_gt.shape[0]-1, camera_height=1.3, labels=labels1, colors=colors1)
+            image = plot_3d_point_cloud_new(pcl_gt.T, 1, pcl_gt.shape[0]-1, camera_height=1.3, labels=labels1, colors=colors1, no_id_distinguish=no_id_distinguish)
             image = cv2.resize(image, (960, int(960 * image.shape[0] / image.shape[1])))
             put_text(image, "Ground Truth")
         return image
 
         
     # ================== for visualization of point clouds: 2 axes for inference and annotate, 1 axis for annotate, no axis for collection ============
-    def visualize_pred_pcd(self, fig, ax1, ptcloud, exp_config, use_old_plot = False):
+    def visualize_pred_pcd(self, fig, ax1, ptcloud, exp_config, no_id_distinguish, use_old_plot = False):
+        print("?????????????DEBUG: no_id_distinguish:", no_id_distinguish)
         if use_old_plot:
             ax1.clear()
             # print(ptcloud.cpu().numpy().shape, "DDDDEBUG")
-            plot_3d_point_cloud(fig, ax1, ptcloud,  exp_config['max_num_persons'], exp_config['max_num_points'])
-            
+            plot_3d_point_cloud(fig, ax1, ptcloud,  exp_config['max_num_persons'], exp_config['max_num_points'], no_id_distinguish=no_id_distinguish)
+
             fig.canvas.draw()
             # fig.canvas.flush_events()
             image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
@@ -667,7 +672,7 @@ class DataProcessor:
         else:
             labels1 = [f'Pred. P{i+1}' for i in range(6)]
             colors1 = plt.colormaps.get_cmap('Set1')(np.linspace(0, 1, 6))
-            image = plot_3d_point_cloud_new(ptcloud,  exp_config['max_num_persons'], exp_config['max_num_points'], camera_height=1.3, labels=labels1, colors=colors1)
+            image = plot_3d_point_cloud_new(ptcloud,  exp_config['max_num_persons'], exp_config['max_num_points'], camera_height=1.3, labels=labels1, colors=colors1, no_id_distinguish=no_id_distinguish)
             image = cv2.resize(image, (960, int(960 * image.shape[0] / image.shape[1])))
             put_text(image, "Prediction")
         print("DEBUG: image shapeeeee:", image.shape)
