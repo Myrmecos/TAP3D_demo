@@ -24,8 +24,31 @@
 # saving data
 To save data to data/ folder, do: `python data_collection.py --exp_config_file model3_m08 --weights weights/m08/Demo_m08_thermo_pt_0826180626.pth --collection_duration 1200 --save 1 --save_dest data/entry0`
 
-# visualizing, annotating and inferencing saved data:
-`python data_check.py --path /home/zx/Desktop/zx/TAP3D_demo/data/test_multi --exp_config_file model3_m08 --weights weights/m08/model3_m08_thermo_pt_0819203728.pth --thermal_input m08 --use_old_plot 1 --no_id_distinguish 1`
+# raw data w/o annotation and prediction, visualize raw data + annotated point cloud gt + prediction:
+1. assumption: we want to plot both annotation and ground truth point cloud
+2. we do not have data annotated or predicted. We only have raw data.
+`python data_check.py --path /home/zx/Desktop/zx/TAP3D_demo/data/test1 --exp_config_file model3_m08 --weights weights/m08/model3_m08_thermo_pt_0819203728.pth --thermal_input m08 --use_old_plot 1 --no_id_distinguish 0 --img2vid 0 --inference_mode 1 --data_processed 0`
+- --path: the folder path
+- --exp_config_file: configuration file name
+- --weights: path to model weight
+- --thermal_input: thermal input type (m08, m16, seek)
+- --use_old_plot: whether to use the old plotting method, 1 for yes, 0 for no
+- --no_id_distinguish: whether to distinguish between different human, or assign all human an id of 1, 1 for assigning all with 1, 0 for keeping individual, distinct assignment
+- --img2vid: whether to convert images to video, 1 for yes, 0 for no
+- --inference_mode: display mode. 1 is to show inference+annotated point cloud, -1 is not show.
+- --data_processed: whether the data has been annotated and predicted, 1 for yes, 0 for no.
+
+# raw data w/o annotation and prediction, visualize raw data only: 
+`python data_check.py --path /home/zx/Desktop/zx/TAP3D_demo/data/test1 --exp_config_file model3_m08 --weights weights/m08/model3_m08_thermo_pt_0819203728.pth --thermal_input m08 --use_old_plot 1 --no_id_distinguish 0 --img2vid 0 --inference_mode -1 --data_processed 0`
+
+# visualize data with annotation and prediction, vidualizing raw data + annotated point cloud gt + prediction:
+`python data_check.py --path /home/zx/Desktop/zx/TAP3D_demo/data/test1 --exp_config_file model3_m08 --weights weights/m08/model3_m08_thermo_pt_0819203728.pth --thermal_input m08 --use_old_plot 1 --no_id_distinguish 0 --img2vid 0 --inference_mode 1 --data_processed 1`
+
+# check data:
+`python data_check.py --path /home/zx/Desktop/zx/TAP3D_demo/data/test_multi --exp_config_file model3_m08 --weights weights/m08/model3_m08_thermo_pt_0819203728.pth --thermal_input m08 --use_old_plot 0 --no_id_distinguish 0 --img2vid 0 --inference_mode -1 --data_processed 0`
+
+
+
 
 # annotating data
 To annotate data, do `python DataAnnotation.py --sensor_name senxor_m08 --visualization_flag 1 --raw_data_folder data`

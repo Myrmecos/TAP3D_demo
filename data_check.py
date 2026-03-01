@@ -458,6 +458,8 @@ if __name__ == "__main__":
     parser.add_argument("--no_id_distinguish", type=int, default=0, help="whether to distinguish between different persons or not")
     parser.add_argument("--annotation", type=int, default=0, help="whether to do annotation or not")
     parser.add_argument("--img2vid", type=int, default=0, help="whether to convert images to video or not")
+    parser.add_argument("--inference_mode", type=int, default=-1, help="inference mode (-1: no pred/annotate, 0: annotation, 1: annotation + pred)")
+    parser.add_argument("--data_processed", type=int, default=0, help="whether the data has been annotated and processed")
 
 
     args = parser.parse_args()
@@ -495,15 +497,22 @@ if __name__ == "__main__":
     pointcloudpaths.sort()
     annotationpaths.sort()
     
-    annotation = True # need annotation
-    inference = True
+    # inference_mode and annotation/inference status
+    inference_mode_switch = {
+        -1: (False, False),
+        1: (True, True)
+    }
+    show_annotation, show_inference = inference_mode_switch[args.inference_mode]
+    inferenced, annotated = False, False
+    if args.data_processed:
+        inferenced, annotated = True, True
 
     framecnt = 0
     sensor_name = "seek_thermal" if args.thermal_input == "seek" else f"senxor_{args.thermal_input}"
-    
-    if annotation:
+
+    if show_annotation:
         annotator = DataAnnotate(sensor_name)
-    if inference: 
+    if show_inference: 
         t2p = M08ToPtcloud('exp_configs', exp_config_file_name, args.weights)
     
     
@@ -532,34 +541,44 @@ if __name__ == "__main__":
         
         timestampstr = imgpaths[framecnt].split("/")[-1].split(".")[0]
         
+        
+        
+        
+        
         # load pickled annotation dictionary
-        if annotation:
+        # we want to visualize the pcd
+        if not annotated and show_annotation: # annotate & visualize
             result_dict = dataProcessor.get_annotation(realsense_color_image, realsense_depth_image, annotator)
             dataProcessor.save_annotation(result_dict, timestampstr, annotationdest)
-        else:
+        elif annotated: # already annotated, only visualize
             result_dict = pkl.load(open(os.path.join(annotationdest, annotationpaths[framecnt]), "rb"))
+        # otherwise, we don't visualize pcd
 
         # produce point cloud visualization for m08
-        if inference:
+        # case 1: we want to visualize the pcd
+        if not inferenced and show_inference: # we need to predict
             ptcloud = dataProcessor.get_point_clouds_pred(args.thermal_input, t2p, senxor_temperature_map_m08, senxor_temperature_map_m16, seek_camera_frame)
             dataProcessor.save_pcd_pred(ptcloud, timestampstr, pointcloudoutputdest)
-        else:
+        elif inferenced: # we already have inference data
             ptcloud = np.load(os.path.join(pointcloudoutputdest, pointcloudpaths[framecnt]))
+        # case 2: we don't want to visualize the pcd
+        # else, we don't want to inference, and we don't want tosee the inferenced data either. (in the case of checking collected data)
         
-
+        pcd_image = None
+        mask = None
         # visualize point cloud
-        pcd_image = dataProcessor.visualize_gt_pcd(fig, ax, result_dict, use_old_plot=args.use_old_plot, no_id_distinguish=args.no_id_distinguish)
-        if args.use_old_plot:
+        if args.inference_mode == 1:
+            pcd_image = dataProcessor.visualize_gt_pcd(fig, ax, result_dict, use_old_plot=args.use_old_plot, no_id_distinguish=args.no_id_distinguish)
+            if args.use_old_plot:
+                pcd_image = dataProcessor.visualize_pred_pcd(fig, ax1, ptcloud, exp_config, use_old_plot=True, no_id_distinguish=args.no_id_distinguish)
+            else:
+                print("DEBUG: shape of idx0:", pcd_image.shape)
+                pcd_image = np.concatenate((pcd_image, dataProcessor.visualize_pred_pcd(fig, ax1, ptcloud, exp_config, use_old_plot=False, no_id_distinguish=args.no_id_distinguish)), axis=1)
+            #break
+            
+            mask = process_mask(result_dict)
 
-            pcd_image = dataProcessor.visualize_pred_pcd(fig, ax1, ptcloud, exp_config, use_old_plot=True, no_id_distinguish=args.no_id_distinguish)
-        else:
-            print("DEBUG: shape of idx0:", pcd_image.shape)
-            pcd_image = np.concatenate((pcd_image, dataProcessor.visualize_pred_pcd(fig, ax1, ptcloud, exp_config, use_old_plot=False, no_id_distinguish=args.no_id_distinguish)), axis=1)
-        #break
-        
-        mask = process_mask(result_dict)
-        
-        final_image = dataProcessor.prepare_sensor_visuals(realsense_color_image, realsense_depth_image, senxor_temperature_map_m08, senxor_temperature_map_m16, seek_camera_frame, pcd_image, mask, inference)
+        final_image = dataProcessor.prepare_sensor_visuals(realsense_color_image, realsense_depth_image, senxor_temperature_map_m08, senxor_temperature_map_m16, seek_camera_frame, pcd_image, mask, args.inference_mode)
         cv2.imshow("Sensor Visuals", final_image)
         print(final_image.shape, "SHAPE OF FINAL IMAGE")
 
