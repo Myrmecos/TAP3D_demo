@@ -621,39 +621,56 @@ class DataProcessor:
         
         
         
-    def visualize_gt_pcd(self, ax, pcl_gt):
-        ax.clear()
+    def visualize_gt_pcd(self, ax, result_dict, use_old_plot = False):
         pcl_gt =  concat_pcd(result_dict)
-        if pcl_gt is not None:
-            print("DEBUG: shape is:", pcl_gt.shape)
-            plot_3d_point_cloud(fig, ax, pcl_gt.T, 1, pcl_gt.shape[0]-1)
+        if use_old_plot:
+            ax.clear()
+            if pcl_gt is not None:
+                print("DEBUG: shape is:", pcl_gt.shape)
+                plot_3d_point_cloud(fig, ax, pcl_gt.T, 1, pcl_gt.shape[0]-1)
+            else:
+                plot_3d_point_cloud(fig, ax, np.zeros([3, 1*42]), 1, 42-1)
+            fig.canvas.draw()
+            # fig.canvas.flush_events()
+            image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
+            image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+            image = cv2.resize(image, (960, int(960 * image.shape[0] / image.shape[1])))
         else:
-            plot_3d_point_cloud(fig, ax, np.zeros([3, 1*42]), 1, 42-1)
-        fig.canvas.draw()
-        # fig.canvas.flush_events()
-        image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
-        image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-        image = cv2.resize(image, (960, int(960 * image.shape[0] / image.shape[1])))
+            labels1 = [f'Pred. P{i+1}' for i in range(6)]
+            colors1 = plt.colormaps.get_cmap('Set1')(np.linspace(0, 1, 6))
+            if pcl_gt is None:
+                pcl_gt = np.zeros([1*6006, 3])
+            image = plot_3d_point_cloud_new(pcl_gt.T, 1, pcl_gt.shape[0]-1, camera_height=1.3, labels=labels1, colors=colors1)
+            image = cv2.resize(image, (960, int(960 * image.shape[0] / image.shape[1])))
+            put_text(image, "Ground Truth")
         return image
 
         
     # ================== for visualization of point clouds: 2 axes for inference and annotate, 1 axis for annotate, no axis for collection ============
-    def visualize_pred_pcd(self, ax1, ptcloud, exp_config):
-        ax1.clear()
-        # print(ptcloud.cpu().numpy().shape, "DDDDEBUG")
-        plot_3d_point_cloud(fig, ax1, ptcloud,  exp_config['max_num_persons'], exp_config['max_num_points'])
-        
-        fig.canvas.draw()
-        # fig.canvas.flush_events()
-        image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
-        image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    def visualize_pred_pcd(self, ax1, ptcloud, exp_config, use_old_plot = False):
+        if use_old_plot:
+            ax1.clear()
+            # print(ptcloud.cpu().numpy().shape, "DDDDEBUG")
+            plot_3d_point_cloud(fig, ax1, ptcloud,  exp_config['max_num_persons'], exp_config['max_num_points'])
+            
+            fig.canvas.draw()
+            # fig.canvas.flush_events()
+            image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
+            image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
 
-        # rescale image such that its width is 960, and its height-width ration remains unchanged
-        cv2.putText(image, f"Ground Truth", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
-        cv2.putText(image, f"Prediction", (10 + 960, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
-        image = cv2.resize(image, (960*2, int(960 * 2 * image.shape[0] / image.shape[1])))
+            # rescale image such that its width is 960, and its height-width ration remains unchanged
+            cv2.putText(image, f"Ground Truth", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+            cv2.putText(image, f"Prediction", (10 + 960, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)
+            image = cv2.resize(image, (960*2, int(960 * 2 * image.shape[0] / image.shape[1])))
+        else:
+            labels1 = [f'Pred. P{i+1}' for i in range(6)]
+            colors1 = plt.colormaps.get_cmap('Set1')(np.linspace(0, 1, 6))
+            image = plot_3d_point_cloud_new(ptcloud,  exp_config['max_num_persons'], exp_config['max_num_points'], camera_height=1.3, labels=labels1, colors=colors1)
+            image = cv2.resize(image, (960, int(960 * image.shape[0] / image.shape[1])))
+            put_text(image, "Prediction")
+        print("DEBUG: image shapeeeee:", image.shape)
         return image
 
 
@@ -746,6 +763,7 @@ if __name__ == "__main__":
     parser.add_argument("--train", type=int, default="0", help="0 is test, 1 is train")
     parser.add_argument("--thermal_input", type=str, default="m08", help="choose from m08, m16 and seek")
     parser.add_argument("--inference", type=int, default=1, help="whether to run inference or not, 1 for inference, 0 for no inference, -1 for no annotation and no inference")
+    parser.add_argument("--use_old_plot", type=bool, default=False, help="whether to use old plot or not")
     args = parser.parse_args()
     
     exp_config_file_name = args.exp_config_file + '.yaml'
@@ -906,8 +924,13 @@ if __name__ == "__main__":
                 pcd_image = dataProcessor.visualize_gt_pcd(ax, result_dict)
             if args.inference == 1:
                 # print(ptcloud.shape, "DDDEEEBBBUUUGGG")
-                pcd_image = dataProcessor.visualize_pred_pcd(ax1, ptcloud, exp_config)
-            
+                if args.use_old_plot:
+                    
+                    pcd_image = dataProcessor.visualize_pred_pcd(ax1, ptcloud, exp_config, use_old_plot=True)
+                else:
+                    print("DEBUG: shape of idx0:", pcd_image.shape)
+                    pcd_image = np.concatenate((pcd_image, dataProcessor.visualize_pred_pcd(ax1, ptcloud, exp_config, use_old_plot=False)), axis=1)
+
             # # visualize mask
             if args.inference != -1:
                 mask = process_mask(result_dict)
@@ -918,7 +941,6 @@ if __name__ == "__main__":
                 
             # ================================== Prepare the images for visualization ==================================
             # visualize realsense
-            print(realsense_depth_image, realsense_depth_image.shape, "DEEBBBUUGUGUG")
             final_image = dataProcessor.prepare_sensor_visuals(realsense_color_image, realsense_depth_image, senxor_temperature_map_m08, senxor_temperature_map_m16, seek_camera_frame, pcd_image, args.inference)
             cv2.imshow("Sensor Visuals", final_image)
 
