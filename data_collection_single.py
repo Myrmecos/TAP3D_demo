@@ -869,6 +869,8 @@ class DataProcessor:
         senxor_temperature_map_thermal = cv2.resize(senxor_temperature_map_thermal, (320, 240), interpolation=cv2.INTER_NEAREST)
         senxor_temperature_map_thermal = cv2.applyColorMap(senxor_temperature_map_thermal, cv2.COLORMAP_JET)
         put_temp(senxor_temperature_map_thermal, thermal_min, thermal_max, "thermal")
+        put_text(realsense_color_image, "color")
+        put_text(realsense_depth_image, "depth")
 
         interm2 = np.concatenate((realsense_color_image, realsense_depth_image, senxor_temperature_map_thermal), axis=1)
         print(interm2.shape, point_cloud_image.shape)
@@ -1029,10 +1031,10 @@ if __name__ == "__main__":
                 ptcloud = dataProcessor.get_point_clouds_pred(t2p, temp_ori)
                 if args.save == 1:
                     dataProcessor.save_pcd_pred(ptcloud, timestampstr, pointcloudoutputdest)
-            if args.inference == 1 or args.inference == 0:
-                result_dict = dataProcessor.get_annotation(realsense_color_image_ori, realsense_depth_image_ori, annotator)
-                if args.save == 1:
-                    dataProcessor.save_annotation(result_dict, timestampstr, annotationdest)
+            # if args.inference == 1 or args.inference == 0:
+            #     result_dict = dataProcessor.get_annotation(realsense_color_image_ori, realsense_depth_image_ori, annotator)
+            #     if args.save == 1:
+            #         dataProcessor.save_annotation(result_dict, timestampstr, annotationdest)
 
             timestamp = time.time()
             
@@ -1057,8 +1059,8 @@ if __name__ == "__main__":
 
             # # visualize mask
             mask = None
-            if args.inference != -1:
-                mask = process_mask(result_dict)
+            # if args.inference != -1:
+            #     mask = process_mask(result_dict)
                 
                 
                 
@@ -1088,7 +1090,7 @@ if __name__ == "__main__":
             if key in [ord("q"), ord('Q'), 27]:
                 break
 
-    senxor_sensor_m08.close()
+    # senxor_sensor_m08.close()
 
     for i in range (5):
         print('\a')
