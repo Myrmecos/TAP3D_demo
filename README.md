@@ -51,7 +51,10 @@ To annotate data, do `python DataAnnotation.py --sensor_name senxor_m08 --visual
 ## collect data with timestamp as dir name under data/:
 `python data_collection.py --exp_config_file model3_m08 --weights weights/m08/model3_m08_thermo_pt_0819203728.pth --collection_duration 1200 --save 1`
 
+# A temporary patch:
+`python data_collection_single.py --exp_config_file model3_m08 --weights weights/m08/model3_m08_thermo_pt_0819203728.pth --collection_duration 1200 --thermal_input m08  --save 0 --inference 1 --use_old_plot 0`
 
+python data_collection_single.py --exp_config_file model3_m16 --weights weights/m16/model3_m16_thermo_pt_0820152400.pth --collection_duration 1200 --thermal_input m16  --save 0 --inference 1 --use_old_plot 0
 
 TODO
 2. gt pcd compare
