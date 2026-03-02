@@ -918,8 +918,8 @@ if __name__ == "__main__":
         senxor_postprocess_m = senxor_postprocess()
 
     realsense_sensor = realsense()
-    senxor_sensor_m08 = senxor_16(sensor_port="/dev/ttyACM0") #beware! This may get flipped
-    senxor_sensor_m16 = senxor_16(sensor_port="/dev/ttyACM1") #beware! This may get flipped
+    senxor_sensor_m08 = senxor_16(sensor_port="/dev/ttyACM1") #beware! This may get flipped
+    senxor_sensor_m16 = senxor_16(sensor_port="/dev/ttyACM0") #beware! This may get flipped
     num_rows_m08, num_cols_m08 = senxor_sensor_m08.get_temperature_map_shape()
     if num_rows_m08 != 62 or num_cols_m08 != 80:
         senxor_sensor_m08, senxor_sensor_m16 = senxor_sensor_m16, senxor_sensor_m08

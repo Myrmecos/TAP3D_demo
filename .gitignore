@@ -7,3 +7,4 @@ detectron2
 workingLog/*
 unused/*
 detectron2
+data_test

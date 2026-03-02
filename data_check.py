@@ -460,6 +460,7 @@ if __name__ == "__main__":
     parser.add_argument("--img2vid", type=int, default=0, help="whether to convert images to video or not")
     parser.add_argument("--vis_mode", type=int, default=-1, help="inference mode (-1: no pred/annotate, 0: annotation, 1: annotation + pred)")
     parser.add_argument("--data_processed", type=int, default=0, help="whether the data has been annotated and processed")
+    parser.add_argument("--annotate_and_pred", type=int, default=0, help="whether to do annotation and prediction or not")
 
 
     args = parser.parse_args()
@@ -507,13 +508,17 @@ if __name__ == "__main__":
     if args.data_processed:
         inferenced, annotated = True, True
 
-    framecnt = 0
+    framecnt = -1
     sensor_name = "seek_thermal" if args.thermal_input == "seek" else f"senxor_{args.thermal_input}"
 
-    if show_annotation:
+    annotate_and_pred = args.annotate_and_pred
+    
+    if show_annotation or annotate_and_pred:
         annotator = DataAnnotate(sensor_name)
-    if show_inference: 
+    if show_inference or annotate_and_pred: 
         t2p = M08ToPtcloud('exp_configs', exp_config_file_name, args.weights)
+    
+    
     
     
     dataProcessor = DataProcessor()
@@ -547,7 +552,7 @@ if __name__ == "__main__":
         
         # load pickled annotation dictionary
         # we want to visualize the pcd
-        if not annotated and show_annotation: # annotate & visualize
+        if (not annotated and show_annotation) or annotate_and_pred: # annotate & visualize
             result_dict = dataProcessor.get_annotation(realsense_color_image, realsense_depth_image, annotator)
             dataProcessor.save_annotation(result_dict, timestampstr, annotationdest)
         elif annotated: # already annotated, only visualize
@@ -556,7 +561,7 @@ if __name__ == "__main__":
 
         # produce point cloud visualization for m08
         # case 1: we want to visualize the pcd
-        if not inferenced and show_inference: # we need to predict
+        if (not inferenced and show_inference) or annotate_and_pred: # we need to predict
             ptcloud = dataProcessor.get_point_clouds_pred(args.thermal_input, t2p, senxor_temperature_map_m08, senxor_temperature_map_m16, seek_camera_frame)
             dataProcessor.save_pcd_pred(ptcloud, timestampstr, pointcloudoutputdest)
         elif inferenced: # we already have inference data
