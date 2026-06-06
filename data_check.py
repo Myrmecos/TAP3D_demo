@@ -473,7 +473,10 @@ if __name__ == "__main__":
     m08dest = os.path.join(args.path, "senxor_m08")
     m16dest = os.path.join(args.path, "senxor_m16")
     seekdest = os.path.join(args.path, "seek_color")
-    pointcloudoutputdest = os.path.join(args.path, "pointcloud_output")
+    pointcloud_folder_name = "pointcloud_" + args.thermal_input
+    pointcloudoutputdest = os.path.join(args.path, pointcloud_folder_name)
+    if not os.path.exists(pointcloudoutputdest):
+        os.makedirs(pointcloudoutputdest)
     annotationdest = os.path.join(args.path, "annotation")
 
 
@@ -545,10 +548,6 @@ if __name__ == "__main__":
         # pointcloud = np.load(os.path.join(pointcloudoutputdest, pointcloudpaths[framecnt]))
         
         timestampstr = imgpaths[framecnt].split("/")[-1].split(".")[0]
-        
-        
-        
-        
         
         # load pickled annotation dictionary
         # we want to visualize the pcd

@@ -20,6 +20,7 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import matplotlib
 matplotlib.use('Agg')  # Ensure Agg backend is set
 import matplotlib.pyplot as plt
+plt.set_loglevel("warning")
 import logging
 from DataAnnotation import DataAnnotate
 import pickle as pkl
@@ -130,7 +131,7 @@ class MLXSensor:
 
 
 class senxor_16:
-    def __init__(self, sensor_port = "/dev/ttyACM0"):
+    def __init__(self, sensor_port = "/dev/ttyACM1"):
         self.sensor_port = sensor_port
         self.mi48 = senxor.utils.connect_senxor(comport=self.sensor_port)
         self.setup_thermal_camera(fps_divisor=3)
@@ -172,7 +173,7 @@ class senxor_16:
         self.mi48.stop()
 
 class senxor_08:
-    def __init__(self, sensor_port = "/dev/ttyACM0"):
+    def __init__(self, sensor_port = "/dev/ttyACM1"):
         self.sensor_port = sensor_port
         self.mi48 = senxor_previous.utils.connect_senxor(src=self.sensor_port)
         self.setup_thermal_camera(fps_divisor=3)
@@ -325,7 +326,6 @@ class seekthermal:
             camera.register_frame_available_callback(on_frame, renderer)
             camera.capture_session_start(SeekCameraFrameFormat.COLOR_ARGB8888)
 
-
     def get_frame(self):
         if self.data_format == "color":
             with self.renderer.frame_condition:
@@ -406,7 +406,6 @@ def plot_3d_point_cloud(fig, ax, point_cloud, max_num_persons = 0, max_num_point
             alpha=1
         ))
 
-    print("!!!!!!!!!!!!!DEBUG: no_id_distinguish:", no_id_distinguish)
     plot_camera(ax)
     global colors
     if no_id_distinguish:
@@ -573,12 +572,6 @@ class DataProcessor:
 
 
 
-
-
-
-
-
-
     # ================================== saving the raw data ==================================
     def get_timestampstr():
         return time.strftime("%Y%m%d%H%M%S", time.localtime()) + f"{int((time.time()%1)*1e6):06d}"
@@ -712,13 +705,6 @@ class DataProcessor:
         # save annotation
         annotationpath = os.path.join(annotationdest, pklname)
         pkl.dump(result_dict, open(annotationpath, "wb"))
-
-        
-        
-        
-        
-        
-        
         
     def visualize_gt_pcd(self, fig, ax, result_dict, no_id_distinguish, use_old_plot = False):
         print("#####visualize_gt_pcd: no_id-distinguish:", no_id_distinguish)
@@ -757,7 +743,6 @@ class DataProcessor:
         
     # ================== for visualization of point clouds: 2 axes for inference and annotate, 1 axis for annotate, no axis for collection ============
     def visualize_pred_pcd(self, fig, ax1, ptcloud, exp_config, no_id_distinguish, use_old_plot = False):
-        print("?????????????DEBUG: use_old_plot:", use_old_plot)
         if use_old_plot:
             ax1.clear()
             # print(ptcloud.cpu().numpy().shape, "DDDDEBUG")
@@ -928,7 +913,7 @@ if __name__ == "__main__":
 
     realsense_sensor = realsense()
     if args.sensor_type == "m08" or args.sensor_type == "m16":
-        senxor_sensor = senxor_16(sensor_port="/dev/ttyACM1") #beware! This may get flipped
+        senxor_sensor = senxor_16(sensor_port="/dev/ttyACM0") #beware! This may get flipped
     num_rows_senxor, num_cols_senxor = senxor_sensor.get_temperature_map_shape()
     # if num_rows_senxor != 62 or num_cols_senxor != 80:
     #     senxor_sensor = senxor_16(sensor_port="/dev/ttyACM1") #beware! This may get flipped
@@ -968,7 +953,7 @@ if __name__ == "__main__":
 
     dataProcessor = DataProcessor()
 
-        
+    
     while True:
         #print("===========debug: start collecting data, frame:", framecnt, "================")
         framecnt+=1
@@ -981,7 +966,7 @@ if __name__ == "__main__":
             temp_ori = temp_ori.reshape(num_cols_senxor, num_rows_senxor)
             temp_ori = np.flip(temp_ori, 0)
             
-            print("DDDDDDDDDDDDDDDDDDDDDDDDDDDDD:", temp_ori.shape)
+            print("Shape of the thermal map:", temp_ori.shape)
 
         realsense_depth_image_ori, realsense_color_image_ori = realsense_sensor.get_frame()
             
