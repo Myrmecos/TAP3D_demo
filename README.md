@@ -14,9 +14,9 @@ or
 python data_check.py --exp_config_file model3_m08 --weights weights/m08/model3_m08_thermo_pt_0819203728.pth --thermal_input m08 --use_old_plot 1 --no_id_distinguish 0 --img2vid 0 --vis_mode 1 --data_processed 0 --path data/zx_home_1
 
 realtime model:
-`python data_collection_single.py --exp_config_file model3_m16 --weights weights/m16/model3_m16_thermo_pt_0820152400.pth --collection_duration 1200 --thermal_input m16  --save 0 --inference 1 --use_old_plot 0`
+`python data_collection_single.py --demo-config config/m16.yaml`
 or:
-`python data_collection_single.py --exp_config_file model3_m08 --weights weights/m08/model3_m08_thermo_pt_0819203728.pth --collection_duration 1200 --thermal_input m08  --save 0 --inference 1 --use_old_plot 0`
+`python data_collection_single.py --demo-config config/m08.yaml`
 
 
 annotate and predict (without visualizing point clouds)

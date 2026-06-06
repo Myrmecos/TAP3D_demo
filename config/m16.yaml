@@ -10,12 +10,12 @@ save: 1
 # optional: if omitted, a timestamped folder under data/ will be used
 save_dest: data/testing
 
-exp_config_file: model3_m08
-weights: "weights/m08/model3_m08_thermo_pt_0819203728.pth"
+exp_config_file: model3_m16
+weights: "weights/m16/model3_m16_thermo_pt_0820152400.pth"
 train: 0
-thermal_input: m08
+thermal_input: m16
 inference: 1
 use_old_plot: 1
-sensor_type: m08
+sensor_type: m16
 
-visualize: 1
+visualize: 0

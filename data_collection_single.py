@@ -61,6 +61,13 @@ def put_text(img, text):
     cv2.putText(img, text, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
     cv2.putText(img, text, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
     
+def argb2bgr(frame):
+    """Converts an RGBA8888 frame to a BGR frame."""
+    if frame.shape[2] != 4:
+        raise ValueError("Input frame must be RGBA8888")
+    bgr_image = frame[:, :, 1:][:, :, ::-1]
+    return bgr_image
+
 class MLXSensor:
     def __init__(self, sensor_port):
         self.sensor_port = sensor_port
@@ -128,7 +135,6 @@ class MLXSensor:
                     right = 0.0
                 mat[i,j] = (top + down + left + right)/num
         return mat
-
 
 class senxor_16:
     def __init__(self, sensor_port = "/dev/ttyACM1"):
@@ -209,80 +215,6 @@ class senxor_08:
     def close(self):
         self.mi48.stop()
 
-
-class senxor_postprocess:
-    def __init__(self):
-        # set cv_filter parameters
-        self.par = {'blur_ks':3, 'd':5, 'sigmaColor': 27, 'sigmaSpace': 27}
-        self.dminav = senxor_previous.utils.RollingAverageFilter(N=10)
-        self.dmaxav = senxor_previous.utils.RollingAverageFilter(N=10)
-
-    def process_temperature_map(self, data):
-        min_temp = self.dminav(data.min())  # + 1.5
-        max_temp = self.dmaxav(data.max())  # - 1.5
-        frame = np.clip(data, min_temp, max_temp)
-        filt_uint8 = senxor_previous.utils.cv_filter(senxor_previous.utils.remap(frame), self.par, use_median=True,
-                           use_bilat=True, use_nlm=False)
-        return filt_uint8
-
-
-class realsense:
-    def __init__(self):
-        self.pipeline = rs.pipeline()
-        self.config = rs.config()
-        pipeline_wrapper = rs.pipeline_wrapper(self.pipeline)
-        pipeline_profile = self.config.resolve(pipeline_wrapper)
-        device = pipeline_profile.get_device()
-        device_product_line = str(device.get_info(rs.camera_info.product_line))
-        found_rgb = False
-        for s in device.sensors:
-            if s.get_info(rs.camera_info.name) == 'RGB Camera':
-                found_rgb = True
-                break
-        if not found_rgb:
-            print("The demo requires Depth camera with Color sensor")
-            exit(0)
-        self.config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
-        if device_product_line == 'L500':
-            self.config.enable_stream(rs.stream.color, 960, 540, rs.format.bgr8, 30)
-        else:
-            self.config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
-        profile = self.pipeline.start(self.config)
-        #below for testing only ====
-        # device = profile.get_device()
-        # device.hardware_reset()
-        #above for testing only ====
-        align_to = rs.stream.color
-        self.align = rs.align(align_to)
-
-    def get_frame(self):
-        frames = self.pipeline.wait_for_frames()
-        aligned_frames = self.align.process(frames)
-        depth_frame = aligned_frames.get_depth_frame()
-        color_frame = aligned_frames.get_color_frame()
-        if not depth_frame or not color_frame:
-            return None, None
-        depth_image = np.asanyarray(depth_frame.get_data())
-        color_image = np.asanyarray(color_frame.get_data())
-        return depth_image, color_image
-
-
-class Renderer:
-    """Contains camera and image data required to render images to the screen."""
-    def __init__(self):
-        self.busy = False
-        self.frame = SeekFrame()
-        self.camera = SeekCamera()
-        self.frame_condition = Condition()
-        self.first_frame = True
-
-def argb2bgr(frame):
-    """Converts an RGBA8888 frame to a BGR frame."""
-    if frame.shape[2] != 4:
-        raise ValueError("Input frame must be RGBA8888")
-    bgr_image = frame[:, :, 1:][:, :, ::-1]
-    return bgr_image
-
 class seekthermal:
     def __init__(self, data_format="color"):
         self.data_format = data_format
@@ -343,6 +275,70 @@ class seekthermal:
         except:
             pass
         self.manager.destroy()
+
+class realsense:
+    def __init__(self):
+        self.pipeline = rs.pipeline()
+        self.config = rs.config()
+        pipeline_wrapper = rs.pipeline_wrapper(self.pipeline)
+        pipeline_profile = self.config.resolve(pipeline_wrapper)
+        device = pipeline_profile.get_device()
+        device_product_line = str(device.get_info(rs.camera_info.product_line))
+        found_rgb = False
+        for s in device.sensors:
+            if s.get_info(rs.camera_info.name) == 'RGB Camera':
+                found_rgb = True
+                break
+        if not found_rgb:
+            print("The demo requires Depth camera with Color sensor")
+            exit(0)
+        self.config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 30)
+        if device_product_line == 'L500':
+            self.config.enable_stream(rs.stream.color, 960, 540, rs.format.bgr8, 30)
+        else:
+            self.config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 30)
+        profile = self.pipeline.start(self.config)
+        #below for testing only ====
+        # device = profile.get_device()
+        # device.hardware_reset()
+        #above for testing only ====
+        align_to = rs.stream.color
+        self.align = rs.align(align_to)
+
+    def get_frame(self):
+        frames = self.pipeline.wait_for_frames()
+        aligned_frames = self.align.process(frames)
+        depth_frame = aligned_frames.get_depth_frame()
+        color_frame = aligned_frames.get_color_frame()
+        if not depth_frame or not color_frame:
+            return None, None
+        depth_image = np.asanyarray(depth_frame.get_data())
+        color_image = np.asanyarray(color_frame.get_data())
+        return depth_image, color_image
+
+class senxor_postprocess:
+    def __init__(self):
+        # set cv_filter parameters
+        self.par = {'blur_ks':3, 'd':5, 'sigmaColor': 27, 'sigmaSpace': 27}
+        self.dminav = senxor_previous.utils.RollingAverageFilter(N=10)
+        self.dmaxav = senxor_previous.utils.RollingAverageFilter(N=10)
+
+    def process_temperature_map(self, data):
+        min_temp = self.dminav(data.min())  # + 1.5
+        max_temp = self.dmaxav(data.max())  # - 1.5
+        frame = np.clip(data, min_temp, max_temp)
+        filt_uint8 = senxor_previous.utils.cv_filter(senxor_previous.utils.remap(frame), self.par, use_median=True,
+                           use_bilat=True, use_nlm=False)
+        return filt_uint8
+
+class Renderer:
+    """Contains camera and image data required to render images to the screen."""
+    def __init__(self):
+        self.busy = False
+        self.frame = SeekFrame()
+        self.camera = SeekCamera()
+        self.frame_condition = Condition()
+        self.first_frame = True
 
 class image_buffer():
     def __init__(self, buffer_size=5):
@@ -512,13 +508,6 @@ def process_mask(result_dict):
 
     return mask
 
-# results_dict = {
-#     'num_persons': 0,
-#     'depth_person': [],
-#     'depth_mask_person': [],  
-#     'point_cloud_person': [],
-#     '2D_pose_person': [],
-# }
 def concat_pcd(result_dict):
     # Concatenate point clouds for all persons
     # point cloud shape: (N, 3)
@@ -548,7 +537,7 @@ class DataProcessor:
         # print("DEBUG: shape of m16:", num_cols_m16, num_rows_m16)
         
         # preprocess frames: organize pixels and orientation
-        senxor_temperature_map_m08 = senxor_temperature_map_m08.reshape(num_cols_m08, num_rows_m08)
+        senxor_temperature_map_m08 = senxor_temperature_map_m08.reshape(num_cols_m08, num_rows_m08) # 80, 62
         senxor_temperature_map_m08 = np.flip(senxor_temperature_map_m08, 0)
         senxor_temperature_map_m16 = senxor_temperature_map_m16.reshape(num_cols_m16, num_rows_m16)
         senxor_temperature_map_m16 = np.flip(senxor_temperature_map_m16, 0)
@@ -589,9 +578,12 @@ class DataProcessor:
         depthpath = os.path.join(depthdest, npyname)
         
         # depthoutputpath = os.path.join(depthoutputdest, npyname)
-        np.save(imgpath, realsense_color_image)
-        np.save(depthpath, realsense_depth_image)
-        np.save(thermal_path, thermal_map)
+        if realsense_color_image is not None:
+            np.save(imgpath, realsense_color_image)
+        if realsense_depth_image is not None:
+            np.save(depthpath, realsense_depth_image)
+        if thermal_map is not None:
+            np.save(thermal_path, thermal_map)
 
     # process depth mask, to re-assign id or others
     def process_depth(self, depth_ori, no_id=False):
@@ -680,7 +672,13 @@ class DataProcessor:
 
     def get_annotation(self, realsense_color_image, realsense_depth_image, annotator):
         # Annotate: get annotation dictionary +++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-        
+        # results_dict = {
+        #     'num_persons': 0,
+        #     'depth_person': [],
+        #     'depth_mask_person': [],  
+        #     'point_cloud_person': [],
+        #     '2D_pose_person': [],
+        # }
         result_dict = annotator.forward(realsense_color_image, realsense_depth_image)
         return result_dict
 
@@ -830,10 +828,7 @@ class DataProcessor:
         return final_image
             
     def prepare_one_visual(self, realsense_color_image, realsense_depth_image, thermal, point_cloud_image):
-        realsense_depth_image = cv2.applyColorMap(cv2.convertScaleAbs(realsense_depth_image, alpha=0.03), cv2.COLORMAP_JET)
-        realsense_depth_image = cv2.resize(realsense_depth_image, (320, 240))
-        realsense_color_image = cv2.resize(realsense_color_image, (320, 240), interpolation=cv2.INTER_NEAREST)
-        
+            
         # visualize m08
         thermal_min = -1024
         thermal_max = -1024
@@ -844,40 +839,54 @@ class DataProcessor:
         senxor_temperature_map_thermal = cv2.resize(senxor_temperature_map_thermal, (320, 240), interpolation=cv2.INTER_NEAREST)
         senxor_temperature_map_thermal = cv2.applyColorMap(senxor_temperature_map_thermal, cv2.COLORMAP_JET)
         put_temp(senxor_temperature_map_thermal, thermal_min, thermal_max, "thermal")
-        put_text(realsense_color_image, "color")
-        put_text(realsense_depth_image, "depth")
-
-        interm2 = np.concatenate((realsense_color_image, realsense_depth_image, senxor_temperature_map_thermal), axis=1)
-        if point_cloud_image is None:
-            return interm2
-        # print(interm2.shape, point_cloud_image.shape)
-        interm1 = np.concatenate((interm2, point_cloud_image), axis=0)
-        return interm1
+        interm = senxor_temperature_map_thermal
+        
+        # add realsense
+        if realsense_color_image is not None and realsense_depth_image is not None:
+            realsense_depth_image = cv2.applyColorMap(cv2.convertScaleAbs(realsense_depth_image, alpha=0.03), cv2.COLORMAP_JET)
+            realsense_depth_image = cv2.resize(realsense_depth_image, (320, 240))
+            realsense_color_image = cv2.resize(realsense_color_image, (320, 240), interpolation=cv2.INTER_NEAREST)
+            put_text(realsense_color_image, "color")
+            put_text(realsense_depth_image, "depth")
+            interm = np.concatenate((realsense_color_image, realsense_depth_image, senxor_temperature_map_thermal), axis=1)
+        
+        # add ptcloud (inferenced)
+        if point_cloud_image is not None:
+            if interm.shape[0] != point_cloud_image.shape[0]:
+                pad = np.zeros((interm.shape[0], -interm.shape[1] + point_cloud_image.shape[1], 3), dtype=np.uint8)
+                interm = np.concatenate((interm, pad), axis=1)
+            # print(interm2.shape, point_cloud_image.shape)
+            interm = np.concatenate((interm, point_cloud_image), axis=0)
+        
+        return interm
 
 
 if __name__ == "__main__":
 
+    # parse arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("--demo-config", type=str, default="config/param.yaml", help="path to YAML file containing all demo parameters (replaces all CLI args)")
     cli_args = parser.parse_args()
     demo_cfg = yaml.safe_load(open(cli_args.demo_config))
 
-    exp_config_file_name = demo_cfg['exp_config_file'] + '.yaml'
     exp_config_file_name_full = "exp_configs/" + demo_cfg['exp_config_file'] + '.yaml'
     exp_config = yaml.safe_load(open(exp_config_file_name_full))
 
+    # initialize M08ToPtcloud (thermal map to point cloud model)
+    exp_config_file_name = demo_cfg['exp_config_file'] + '.yaml'
     t2p = M08ToPtcloud('exp_configs', exp_config_file_name, demo_cfg['weights'])
 
+    # prepare data (for human pose marking) (unused currently)
+    thermal_input = demo_cfg['thermal_input']
+    sensor_name = "seek_thermal" if thermal_input == "seek" else f"senxor_{thermal_input}"
+    annotator = DataAnnotate(sensor_name)
+
+    # prepare save dir
     imgdest = os.path.join(demo_cfg['save_dest'], "realsense_color")
     depthdest = os.path.join(demo_cfg['save_dest'], "realsense_depth")
     thermal_dest = os.path.join(demo_cfg['save_dest'], demo_cfg['thermal_input'])
     pointcloudoutputdest = os.path.join(demo_cfg['save_dest'], "pointcloud_output")
     annotationdest = os.path.join(demo_cfg['save_dest'], "annotation")
-
-    thermal_input = demo_cfg['thermal_input']
-    sensor_name = "seek_thermal" if thermal_input == "seek" else f"senxor_{thermal_input}"
-    annotator = DataAnnotate(sensor_name)
-
     if demo_cfg['save'] == 1 and not os.path.exists(demo_cfg['save_dest']):
         os.mkdir(demo_cfg['save_dest'])
         os.mkdir(imgdest)
@@ -886,17 +895,20 @@ if __name__ == "__main__":
         os.mkdir(pointcloudoutputdest)
         os.mkdir(annotationdest)
 
+    # postprocess if needed
     if demo_cfg['mi08_process'] or demo_cfg['mi16_process']:
         senxor_postprocess_m = senxor_postprocess()
 
-    realsense_sensor = realsense()
+    # realsense gt
+    if demo_cfg['enable_realsense']:
+        realsense_sensor = realsense()
+    # thermal, if needed
     if demo_cfg['sensor_type'] == "m08" or demo_cfg['sensor_type'] == "m16":
         senxor_sensor = senxor_16(sensor_port="/dev/ttyACM0") #beware! This may get flipped
     num_rows_senxor, num_cols_senxor = senxor_sensor.get_temperature_map_shape()
     # if num_rows_senxor != 62 or num_cols_senxor != 80:
     #     senxor_sensor = senxor_16(sensor_port="/dev/ttyACM1") #beware! This may get flipped
-
-    # seek
+    # seek, if needed
     if demo_cfg['sensor_type'] == "seek":
         seek_sensor = seekthermal(data_format="others")
 
@@ -921,8 +933,6 @@ if __name__ == "__main__":
     # preparation for plotting
     fig = plt.figure(figsize=(12, 8))
     ax = fig.add_subplot(111, projection='3d')
-        
-    # plt.show(block=False)
 
 
 
@@ -946,7 +956,11 @@ if __name__ == "__main__":
             
             # print("Shape of the thermal map:", temp_ori.shape)
 
-        realsense_depth_image_ori, realsense_color_image_ori = realsense_sensor.get_frame()
+        if demo_cfg['enable_realsense']:
+            realsense_depth_image_ori, realsense_color_image_ori = realsense_sensor.get_frame()
+        else:
+            realsense_color_image_ori = None
+            realsense_depth_image_ori = None
             
         if demo_cfg['sensor_type'] == "seek":
             seek_camera_frame_ori = copy.deepcopy(seek_sensor.get_frame())
@@ -968,7 +982,7 @@ if __name__ == "__main__":
         
 
         # ================================== check exist and processing data ==================================
-        if realsense_depth_image_ori is None or realsense_color_image_ori is None or temp_ori is None:
+        if temp_ori is None:
             continue
         else:
             
@@ -1028,14 +1042,17 @@ if __name__ == "__main__":
                 
             # ================================== Prepare the images for visualization ==================================
             # visualize realsense
-            final_image = dataProcessor.prepare_one_visual(realsense_color_image_ori, realsense_depth_image_ori, temp_ori, pcd_image)
-            cv2.imshow("Sensor Visuals", final_image)
+            if demo_cfg['visualize'] == 1:
+                final_image = dataProcessor.prepare_one_visual(realsense_color_image_ori, realsense_depth_image_ori, temp_ori, pcd_image)
+                cv2.imshow("Sensor Visuals", final_image)
 
 
             
             
             # ================================== check if we overrun ==================================
-            # time_lasting = time.time() - start_time
+            time_lasting = time.time() - start_time
+            if framecnt%20: 
+                print(f"framerate: {framecnt / time_lasting} Hz")
             # if time_lasting > collection_duration:
             #     break
             #     # timestamp = time.time()
