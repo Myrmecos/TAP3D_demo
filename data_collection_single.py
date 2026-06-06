@@ -220,10 +220,12 @@ class senxor_08:
         self.mi48.stop()
 
 class MockSenxor:
+    '''Replaying recorded data, for re-inferencing recorded thermal frames'''
     def __init__(self, path):
         # print("DEBUG: path is: ", path)
         self.path = path
         self.paths = os.listdir(path)
+        self.paths.sort()
         self.img_idx = 0
 
     def get_temperature_map(self):
@@ -339,6 +341,7 @@ class realsense:
         return depth_image, color_image
 
 class MockRealsense:
+    '''replaying recorded data'''
     def __init__(self, source_dir):
         self.source_dir = source_dir
         self.color_dir = os.path.join(source_dir, "realsense_color")
@@ -902,7 +905,6 @@ class DataProcessor:
 
         return interm
 
-
 if __name__ == "__main__":
 
     # parse arguments
@@ -953,13 +955,13 @@ if __name__ == "__main__":
             realsense_sensor = realsense()
 
         # thermal, if needed
-        if demo_cfg['sensor_type'] == "m08" or demo_cfg['sensor_type'] == "m16":
+        if demo_cfg['thermal_input'] == "m08" or demo_cfg['thermal_input'] == "m16":
             senxor_sensor = senxor_16(sensor_port="/dev/ttyACM0") #beware! This may get flipped
         num_rows_senxor, num_cols_senxor = senxor_sensor.get_temperature_map_shape()
         # if num_rows_senxor != 62 or num_cols_senxor != 80:
         #     senxor_sensor = senxor_16(sensor_port="/dev/ttyACM1") #beware! This may get flipped
         # seek, if needed
-        # if demo_cfg['sensor_type'] == "seek":
+        # if demo_cfg['thermal_input'] == "seek":
         #     seek_sensor = seekthermal(data_format="others")
 
     # buffer for synchronizing different sensors
@@ -993,10 +995,11 @@ if __name__ == "__main__":
         # obtain data from sensors
 
 
-        if demo_cfg['sensor_type'] == "m08" or demo_cfg['sensor_type'] == "m16":
+        if demo_cfg['thermal_input'] == "m08" or demo_cfg['thermal_input'] == "m16":
             temp_ori, header1 = senxor_sensor.get_temperature_map()
             # print("DEBUG: temp_ori is", temp_ori)
-            temp_ori = np.flip(temp_ori, 0)
+            if not demo_cfg['use_recorded_data']:
+                temp_ori = np.flip(temp_ori, 0)
 
             # print("Shape of the thermal map:", temp_ori.shape)
 
@@ -1006,12 +1009,13 @@ if __name__ == "__main__":
             realsense_color_image_ori = None
             realsense_depth_image_ori = None
 
-        if demo_cfg['sensor_type'] == "seek":
+        if demo_cfg['thermal_input'] == "seek":
             seek_camera_frame_ori = copy.deepcopy(seek_sensor.get_frame())
             seek_camera_buffer.add(seek_camera_frame_ori)
             temp_ori= seek_camera_buffer.get()
-            temp_ori = np.flip(temp_ori, 0)
-            temp_ori = np.flip(temp_ori, 1)
+            if not demo_cfg['use_recorded_data']:
+                temp_ori = np.flip(temp_ori, 0)
+                temp_ori = np.flip(temp_ori, 1)
 
         # adding to buffer for synchronization
         realsense_color_buffer.add(realsense_color_image_ori)

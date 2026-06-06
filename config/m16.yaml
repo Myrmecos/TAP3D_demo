@@ -16,6 +16,8 @@ train: 0
 thermal_input: m16
 inference: 1
 use_old_plot: 1
-sensor_type: m16
 
-visualize: 0
+visualize: 1
+
+use_recorded_data: 0
+recorded_data_path: /home/zx/Desktop/zx/TAP3D_demo/data/testing

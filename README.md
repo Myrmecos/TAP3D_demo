@@ -9,15 +9,36 @@ or:
 `python data_collection.py --exp_config_file model3_m16 --weights weights/m16/model3_m16_thermo_pt_0820152400.pth --collection_duration 1200 --thermal_input m16  --save 1 --inference 1 --use_old_plot 0 --save_dest data/CB328_7`
 
 data check:
-python data_check.py --exp_config_file model3_m16 --weights weights/m16/model3_m16_thermo_pt_0820152400.pth --thermal_input m16 --use_old_plot 1 --no_id_distinguish 0 --img2vid 0 --vis_mode 1 --data_processed 0 --path data/zx_home_3
+`python data_check.py --exp_config_file model3_m16 --weights weights/m16/model3_m16_thermo_pt_0820152400.pth --thermal_input m16 --use_old_plot 1 --no_id_distinguish 0 --img2vid 0 --vis_mode 1 --data_processed 0 --path data/zx_home_3`
 or 
-python data_check.py --exp_config_file model3_m08 --weights weights/m08/model3_m08_thermo_pt_0819203728.pth --thermal_input m08 --use_old_plot 1 --no_id_distinguish 0 --img2vid 0 --vis_mode 1 --data_processed 0 --path data/zx_home_1
+`python data_check.py --exp_config_file model3_m08 --weights weights/m08/model3_m08_thermo_pt_0819203728.pth --thermal_input m08 --use_old_plot 1 --no_id_distinguish 0 --img2vid 0 --vis_mode 1 --data_processed 0 --path data/zx_home_1`
 
 realtime model:
 `python data_collection_single.py --demo-config config/m16.yaml`
 or:
 `python data_collection_single.py --demo-config config/m08.yaml`
+The config file content
+1. collection_duration: how long you want to collect data
+2. sleep_time: how long between two frames' collection
+3. enable_MLX: deprecated
+4. mi08/mi16_processing: if we process the data
+5. save: if we save the data
+6. save_dest: destination for saving data. THe data will be saved in subfolders of this specified folder
+7. exp_config_file: config file for model
+8. weight: the weight you want to use
+9. train
+10. thermal_input: which type of sensor as thermal input
+11. inference: if we want to predict the 3d points or we just want to collect data
+12. use_old_plot: if use old matplotlib plot or new (but slower) plot
 
+14. visualize: if we want to visualize sensor input and results
+15. use_recorded_data: if we want to inference from recorded data. If yes, save is automatically false.
+16. recorded_data_path: the folder containing recorded data
+
+inferencing from recorded data:
+1. keep all yaml file contentes the same
+2. change use_recorded_data to 1
+3. change recorded_data_path the the folder containing recorded data
 
 annotate and predict (without visualizing point clouds)
 `python data_check.py --path data/CB328_7 --exp_config_file model3_m08 --weights weights/m08/model3_m08_thermo_pt_0819203728.pth --thermal_input m08 --use_old_plot 0 --no_id_distinguish 0 --img2vid 1 --vis_mode -1 --data_processed 0 --annotate_and_pred 1`
