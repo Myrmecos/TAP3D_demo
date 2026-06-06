@@ -60,7 +60,7 @@ def put_temp(image, temp1, temp2, sensor_name):
 def put_text(img, text):
     cv2.putText(img, text, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2)
     cv2.putText(img, text, (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
-    
+
 def argb2bgr(frame):
     """Converts an RGBA8888 frame to a BGR frame."""
     if frame.shape[2] != 4:
@@ -149,10 +149,12 @@ class senxor_16:
         self.mi48.start(stream=True, with_header=True)
 
     def get_temperature_map(self):
-        return self.mi48.read() # data, header
+        data, header = self.mi48.read() # data, header
+        data = data.reshape(self.nrows, self.ncols)
+        return data, header
 
     def get_temperature_map_shape(self):
-        return self.ncols, self.nrows
+        return self.nrows, self.ncols
 
     def setup_thermal_camera(self, fps_divisor = 3):
         self.mi48.regwrite(0xB4, fps_divisor)  #
@@ -193,8 +195,10 @@ class senxor_08:
     def get_temperature_map(self):
         return self.mi48.read() # data, header
 
-    def get_temperature_map_shape(self):
-        return self.ncols, self.nrows
+    def get_temperature_map(self):
+        data, header = self.mi48.read() # data, header
+        data = data.reshape(self.nrows, self.ncols)
+        return data, header
 
     def setup_thermal_camera(self, fps_divisor = 3):
         self.mi48.regwrite(0xB4, fps_divisor)  #
@@ -214,6 +218,24 @@ class senxor_08:
 
     def close(self):
         self.mi48.stop()
+
+class MockSenxor:
+    def __init__(self, path):
+        # print("DEBUG: path is: ", path)
+        self.path = path
+        self.paths = os.listdir(path)
+        self.img_idx = 0
+
+    def get_temperature_map(self):
+        if self.img_idx >= len(self.paths):
+            return None
+        img_path = os.path.join(self.path, self.paths[self.img_idx])
+        image = np.load(img_path)
+        self.img_idx += 1
+        return image, None # None is header
+    def get_timestampstr(self):
+        timestampstr = self.paths[self.img_idx-1].split(".")[0]
+        return timestampstr
 
 class seekthermal:
     def __init__(self, data_format="color"):
@@ -316,6 +338,26 @@ class realsense:
         color_image = np.asanyarray(color_frame.get_data())
         return depth_image, color_image
 
+class MockRealsense:
+    def __init__(self, source_dir):
+        self.source_dir = source_dir
+        self.color_dir = os.path.join(source_dir, "realsense_color")
+        self.depth_dir = os.path.join(source_dir, "realsense_depth")
+        self.img_idx = 0
+        self.color_img_paths = os.listdir(self.color_dir)
+        self.depth_img_paths = os.listdir(self.depth_dir)
+        self.color_img_paths.sort()
+        self.depth_img_paths.sort()
+
+    def get_frame(self):
+        if self.img_idx >= len(self.color_img_paths) or self.img_idx >= len(self.depth_img_paths):
+            return None, None
+        color_image = np.load(os.path.join(self.color_dir, self.color_img_paths[self.img_idx]))
+        depth_image = np.load(os.path.join(self.depth_dir, self.depth_img_paths[self.img_idx]))
+        self.img_idx += 1
+        # print("DEBUG: shape of depth image is:", depth_image.shape)
+        return depth_image, color_image
+
 class senxor_postprocess:
     def __init__(self):
         # set cv_filter parameters
@@ -405,7 +447,7 @@ def plot_3d_point_cloud(fig, ax, point_cloud, max_num_persons = 0, max_num_point
     global colors
     if no_id_distinguish:
         colors = ['red']*6
-        
+
     # Plot points for each person
     if regularSpacing:
         for person_idx in range(max_num_persons):
@@ -465,14 +507,14 @@ def process_mask(result_dict):
     each human is assigned a color
     '''
     mask = None
-    
+
     pcl_gt =  result_dict['depth_mask_person']
     pcl_dist = result_dict['depth_person']
-    
+
     # sort pcl_gt's element according to pcl_dist
     indices = np.argsort(pcl_dist)
     # pcl_gt = [pcl_gt[i] for i in indices]
-        
+
 
     # Get colors for each person
     colors = ['red', 'blue', 'green', 'orange', 'purple']
@@ -483,7 +525,7 @@ def process_mask(result_dict):
         'orange': (255, 165, 0),
         'purple': (128, 0, 128)
     }
-    
+
     for i in range(result_dict['num_persons']):
         target = pcl_gt[indices[i]]
         if mask is None:
@@ -494,12 +536,12 @@ def process_mask(result_dict):
             mask = np.stack([mask] * 3, axis=-1)
 
         mask[target > 0] = color_map[colors[i]] # assign the i-th color in the global color array (which contains strings of color). we need only a value. mask and target are both 2d arrays
-        
-        
+
+
 
     if mask is None:
         mask = np.ones((240, 320, 3), dtype=np.uint8)*255
-        
+
     mask = mask.astype(np.uint8)
     mask = cv2.resize(mask, (320, 240), interpolation=cv2.INTER_NEAREST)
     # mask = cv2.applyColorMap(mask, cv2.COLORMAP_JET)
@@ -527,15 +569,15 @@ def process_depth(result_dict, h = 62, w = 80):
 class DataProcessor:
     def __init__(self):
         pass
-    
+
      # ================================== check exist and processing data ==================================
     def process_data_raw(self, realsense_depth_image, realsense_color_image, temp_ori):
         if realsense_depth_image is None or realsense_color_image is None or temp_ori is None or seek_camera_frame is None:
             return None
-        
+
         # print("DEBUG: shape of image:", num_cols_m08, num_rows_m08)
         # print("DEBUG: shape of m16:", num_cols_m16, num_rows_m16)
-        
+
         # preprocess frames: organize pixels and orientation
         senxor_temperature_map_m08 = senxor_temperature_map_m08.reshape(num_cols_m08, num_rows_m08) # 80, 62
         senxor_temperature_map_m08 = np.flip(senxor_temperature_map_m08, 0)
@@ -543,7 +585,7 @@ class DataProcessor:
         senxor_temperature_map_m16 = np.flip(senxor_temperature_map_m16, 0)
         seek_camera_frame = np.flip(seek_camera_frame, 0)
         seek_camera_frame = np.flip(seek_camera_frame, 1)
-        
+
         # postprocess
         if demo_cfg['mi08_process']:
             senxor_temperature_map_m08 = senxor_postprocess_m.process_temperature_map(senxor_temperature_map_m08)
@@ -562,21 +604,21 @@ class DataProcessor:
     # ================================== saving the raw data ==================================
     def get_timestampstr():
         return time.strftime("%Y%m%d%H%M%S", time.localtime()) + f"{int((time.time()%1)*1e6):06d}"
-    
+
     # preparing file name
     def save_raw_data(self, realsense_depth_image,
-                      realsense_color_image, 
-                      thermal_map, 
+                      realsense_color_image,
+                      thermal_map,
                       timestampstr):
-        
+
         npyname = timestampstr + ".npy"
         pklname = timestampstr + ".pkl"
-        
+
         # timestamp format: yyyymmddhhmmssffffff
         imgpath = os.path.join(imgdest, npyname)
         thermal_path = os.path.join(thermal_dest, npyname)
         depthpath = os.path.join(depthdest, npyname)
-        
+
         # depthoutputpath = os.path.join(depthoutputdest, npyname)
         if realsense_color_image is not None:
             np.save(imgpath, realsense_color_image)
@@ -595,7 +637,7 @@ class DataProcessor:
         depth = depth_ori.cpu().numpy()
         depth, indicator, foreground_background_mask = depth[0, 0], depth[0, 1], depth[0, 2]
         # print(depth.shape, indicator.shape, foreground_background_mask.shape, "DEBUG: all, before removing small regions")
-        
+
         foreground_background_mask = remove_small_regions(foreground_background_mask)
         # print(depth.shape, indicator.shape, foreground_background_mask.shape, "DEBUG: all, after removing small regions")
         # depth[~foreground_background_mask] = 0
@@ -618,7 +660,7 @@ class DataProcessor:
                 # assign this min depth value to the corresponding pixels in the indicator
                 depth_lst.append([mean_depth, uid])
             depth_lst.sort()  # sort by depth, ascending
-            
+
             new_indicator = np.zeros_like(indicator)
             for i, (d, uid) in enumerate(depth_lst):
                 new_indicator[indicator == uid] = i + 1
@@ -631,8 +673,8 @@ class DataProcessor:
         depth = torch.from_numpy(depth).float()  # (1, 1, H, W)
         indicator = torch.from_numpy(indicator).float()
         foreground_background_mask = torch.from_numpy(foreground_background_mask.copy())
-        
-    
+
+
         # Move back to original device
         device = depth_ori.device
         depth = depth.to(device).unsqueeze(0).unsqueeze(0)
@@ -640,7 +682,7 @@ class DataProcessor:
         foreground_background_mask = foreground_background_mask.to(device).unsqueeze(0).unsqueeze(0)
 
         res = torch.cat([depth, indicator, foreground_background_mask], dim=1)
-        
+
         # global cnt
         # if cnt == 10:
         #     time.sleep(1)
@@ -648,19 +690,19 @@ class DataProcessor:
         #     np.save("indicator.npy", indicator.cpu().numpy()[0, 0])
         #     np.save("forground_background_mask.npy", forground_background_mask.cpu().numpy()[0, 0])
         #     exit(0)
-            
+
         # cnt += 1
         return res
-        
+
 
     # ================================== Inference: get the predicted point clouds ================================================
     def get_point_clouds_pred(self, t2p, thermal_image):
-            
+
         # MODEL calling
         thermal_image = np.expand_dims(thermal_image, axis=0)
         thermal_image = np.expand_dims(thermal_image, axis=0)
         thermal_image = torch.from_numpy(thermal_image.copy())
-        
+
         # produce point cloud visualization for m08
         # ptcloud = t2p.thermal2ptcloud(thermal_images)
         # print("shape of thermal image: ", thermal_image.shape)
@@ -675,7 +717,7 @@ class DataProcessor:
         # results_dict = {
         #     'num_persons': 0,
         #     'depth_person': [],
-        #     'depth_mask_person': [],  
+        #     'depth_mask_person': [],
         #     'point_cloud_person': [],
         #     '2D_pose_person': [],
         # }
@@ -697,7 +739,7 @@ class DataProcessor:
         # save annotation
         annotationpath = os.path.join(annotationdest, pklname)
         pkl.dump(result_dict, open(annotationpath, "wb"))
-        
+
     def visualize_gt_pcd(self, fig, ax, result_dict, no_id_distinguish, use_old_plot = False):
         # print("#####visualize_gt_pcd: no_id-distinguish:", no_id_distinguish)
 
@@ -707,7 +749,7 @@ class DataProcessor:
         indices = np.argsort(pcl_dist)
         # print(len(pcl_gt), len(indices), "DEBUG: length of pcl_gt and pcl_dist")
         pcl_gt = [pcl_gt[i] for i in indices]
-        
+
         if use_old_plot:
             ax.clear()
             if pcl_gt is not None:
@@ -731,7 +773,7 @@ class DataProcessor:
             put_text(image, "Ground Truth")
         return image
 
-        
+
     # ================== for visualization of point clouds: 2 axes for inference and annotate, 1 axis for annotate, no axis for collection ============
     def visualize_pred_pcd(self, fig, ax1, ptcloud, exp_config, no_id_distinguish, use_old_plot = False):
         if use_old_plot:
@@ -757,7 +799,7 @@ class DataProcessor:
             put_text(image, "Prediction")
         return image
 
-    def prepare_sensor_visuals(self, realsense_color_image, realsense_depth_image, senxor_temperature_map_m08, senxor_temperature_map_m16, seek_camera_frame, point_cloud_image, mask, inference_mode):  
+    def prepare_sensor_visuals(self, realsense_color_image, realsense_depth_image, senxor_temperature_map_m08, senxor_temperature_map_m16, seek_camera_frame, point_cloud_image, mask, inference_mode):
         # ================================== Prepare the images for visualization ==================================
         # visualize realsense
         realsense_depth_image = cv2.applyColorMap(cv2.convertScaleAbs(realsense_depth_image, alpha=0.03), cv2.COLORMAP_JET)
@@ -774,7 +816,7 @@ class DataProcessor:
         senxor_temperature_map_m08 = cv2.resize(senxor_temperature_map_m08, (320, 240), interpolation=cv2.INTER_NEAREST)
         senxor_temperature_map_m08 = cv2.applyColorMap(senxor_temperature_map_m08, cv2.COLORMAP_JET)
         put_temp(senxor_temperature_map_m08, m08_min, m08_max, "m08")
-        
+
         m16_min = -1024
         m16_max = -1024
         m16_min = np.min(senxor_temperature_map_m16)
@@ -795,7 +837,7 @@ class DataProcessor:
         seek_camera_frame = cv2.resize(seek_camera_frame, (320, 240), interpolation=cv2.INTER_NEAREST)
         seek_camera_frame = cv2.applyColorMap(seek_camera_frame, cv2.COLORMAP_JET)
         put_temp(seek_camera_frame, seek_min, seek_max, "seek")
-        
+
         # put text on depth and color
         put_text(realsense_depth_image, "realsense depth")
         put_text(realsense_color_image, "realsense color")
@@ -803,18 +845,18 @@ class DataProcessor:
         #print(realsense_depth_image.shape, realsense_color_image.shape, seek_camera_frame.shape,  senxor_temperature_map_m08.shape, MLX_temperature_map.shape,)
         interm1 = np.concatenate((realsense_depth_image, realsense_color_image, senxor_temperature_map_m08), axis=1)
         # black image: shape is 320*2 by 240
-        
+
         put_text(mask, "human mask")
-        
-        
-        
+
+
+
         # ================================== arrange the images for visualization ==================================
         if inference_mode == 1:
             interm2 = np.concatenate((seek_camera_frame, mask, senxor_temperature_map_m16), axis=1)
             interm1 = np.concatenate((interm1, interm2), axis=1)
             interm1 = np.concatenate((interm1, point_cloud_image), axis=0)
             final_image = interm1
-        elif inference_mode == 0: 
+        elif inference_mode == 0:
             interm2 = np.concatenate((seek_camera_frame, mask, senxor_temperature_map_m16), axis=1)
             interm1 = np.concatenate((interm1, interm2), axis=0)
             interm1 = np.concatenate((interm1, point_cloud_image), axis=0)
@@ -826,9 +868,9 @@ class DataProcessor:
             interm1 = np.concatenate((interm1, interm2), axis=0)
             final_image = interm1
         return final_image
-            
+
     def prepare_one_visual(self, realsense_color_image, realsense_depth_image, thermal, point_cloud_image):
-            
+
         # visualize m08
         thermal_min = -1024
         thermal_max = -1024
@@ -840,7 +882,7 @@ class DataProcessor:
         senxor_temperature_map_thermal = cv2.applyColorMap(senxor_temperature_map_thermal, cv2.COLORMAP_JET)
         put_temp(senxor_temperature_map_thermal, thermal_min, thermal_max, "thermal")
         interm = senxor_temperature_map_thermal
-        
+
         # add realsense
         if realsense_color_image is not None and realsense_depth_image is not None:
             realsense_depth_image = cv2.applyColorMap(cv2.convertScaleAbs(realsense_depth_image, alpha=0.03), cv2.COLORMAP_JET)
@@ -849,7 +891,7 @@ class DataProcessor:
             put_text(realsense_color_image, "color")
             put_text(realsense_depth_image, "depth")
             interm = np.concatenate((realsense_color_image, realsense_depth_image, senxor_temperature_map_thermal), axis=1)
-        
+
         # add ptcloud (inferenced)
         if point_cloud_image is not None:
             if interm.shape[0] != point_cloud_image.shape[0]:
@@ -857,7 +899,7 @@ class DataProcessor:
                 interm = np.concatenate((interm, pad), axis=1)
             # print(interm2.shape, point_cloud_image.shape)
             interm = np.concatenate((interm, point_cloud_image), axis=0)
-        
+
         return interm
 
 
@@ -899,18 +941,26 @@ if __name__ == "__main__":
     if demo_cfg['mi08_process'] or demo_cfg['mi16_process']:
         senxor_postprocess_m = senxor_postprocess()
 
-    # realsense gt
-    if demo_cfg['enable_realsense']:
-        realsense_sensor = realsense()
-    # thermal, if needed
-    if demo_cfg['sensor_type'] == "m08" or demo_cfg['sensor_type'] == "m16":
-        senxor_sensor = senxor_16(sensor_port="/dev/ttyACM0") #beware! This may get flipped
-    num_rows_senxor, num_cols_senxor = senxor_sensor.get_temperature_map_shape()
-    # if num_rows_senxor != 62 or num_cols_senxor != 80:
-    #     senxor_sensor = senxor_16(sensor_port="/dev/ttyACM1") #beware! This may get flipped
-    # seek, if needed
-    if demo_cfg['sensor_type'] == "seek":
-        seek_sensor = seekthermal(data_format="others")
+    # ============= prepare sensor =======================
+    if demo_cfg['use_recorded_data']:
+        recorded_data_path = demo_cfg['recorded_data_path']
+        realsense_sensor = MockRealsense(recorded_data_path)
+        senxor_sensor = MockSenxor(os.path.join(recorded_data_path, demo_cfg['thermal_input']))
+        demo_cfg['save'] = 0 # if we are using recorded data, we do not save
+    else:
+        # realsense gt
+        if demo_cfg['enable_realsense']:
+            realsense_sensor = realsense()
+
+        # thermal, if needed
+        if demo_cfg['sensor_type'] == "m08" or demo_cfg['sensor_type'] == "m16":
+            senxor_sensor = senxor_16(sensor_port="/dev/ttyACM0") #beware! This may get flipped
+        num_rows_senxor, num_cols_senxor = senxor_sensor.get_temperature_map_shape()
+        # if num_rows_senxor != 62 or num_cols_senxor != 80:
+        #     senxor_sensor = senxor_16(sensor_port="/dev/ttyACM1") #beware! This may get flipped
+        # seek, if needed
+        # if demo_cfg['sensor_type'] == "seek":
+        #     seek_sensor = seekthermal(data_format="others")
 
     # buffer for synchronizing different sensors
     # since some sensors get data slower
@@ -920,7 +970,7 @@ if __name__ == "__main__":
     realsense_depth_buffer = image_buffer(buffer_len)
 
     # prepare shapes of the inputs
-    senxor_sensor_shape = senxor_sensor.get_temperature_map_shape()
+    # senxor_sensor_shape = senxor_sensor.get_temperature_map_shape()
 
     # metadata about collection timing
     framecnt = 0   # the number of the received frames
@@ -934,26 +984,20 @@ if __name__ == "__main__":
     fig = plt.figure(figsize=(12, 8))
     ax = fig.add_subplot(111, projection='3d')
 
-
-
-
-
-
     dataProcessor = DataProcessor()
 
-    
     while True:
         #print("===========debug: start collecting data, frame:", framecnt, "================")
         framecnt+=1
-        
+
         # obtain data from sensors
 
 
         if demo_cfg['sensor_type'] == "m08" or demo_cfg['sensor_type'] == "m16":
             temp_ori, header1 = senxor_sensor.get_temperature_map()
-            temp_ori = temp_ori.reshape(num_cols_senxor, num_rows_senxor)
+            # print("DEBUG: temp_ori is", temp_ori)
             temp_ori = np.flip(temp_ori, 0)
-            
+
             # print("Shape of the thermal map:", temp_ori.shape)
 
         if demo_cfg['enable_realsense']:
@@ -961,7 +1005,7 @@ if __name__ == "__main__":
         else:
             realsense_color_image_ori = None
             realsense_depth_image_ori = None
-            
+
         if demo_cfg['sensor_type'] == "seek":
             seek_camera_frame_ori = copy.deepcopy(seek_sensor.get_frame())
             seek_camera_buffer.add(seek_camera_frame_ori)
@@ -972,29 +1016,28 @@ if __name__ == "__main__":
         # adding to buffer for synchronization
         realsense_color_buffer.add(realsense_color_image_ori)
         realsense_depth_buffer.add(realsense_depth_image_ori)
-        
+
         # drawing from buffer for synchronization
         realsense_color_image_ori = realsense_color_buffer.get()
         realsense_depth_image_ori = realsense_depth_buffer.get()
-        
-        
-        
-        
+
+
+
+
 
         # ================================== check exist and processing data ==================================
         if temp_ori is None:
             continue
         else:
-            
-            
+
+
             # ================================== saving the raw data ==================================
             # preparing file name
             timestampstr = time.strftime("%Y%m%d%H%M%S", time.localtime()) + f"{int((time.time()%1)*1e6):06d}"
             npyname = timestampstr + ".npy"
             pklname = timestampstr + ".pkl"
             if demo_cfg['save'] == 1:
-                dataProcessor.save_raw_data(realsense_depth_image_ori, realsense_color_image_ori, thermal_dest, timestampstr)
-
+                dataProcessor.save_raw_data(realsense_depth_image_ori, realsense_color_image_ori, temp_ori, timestampstr)
 
 
 
@@ -1008,17 +1051,20 @@ if __name__ == "__main__":
                 ptcloud = dataProcessor.get_point_clouds_pred(t2p, temp_ori)
                 if demo_cfg['save'] == 1:
                     dataProcessor.save_pcd_pred(ptcloud, timestampstr, pointcloudoutputdest)
+                if demo_cfg['use_recorded_data'] == 1:
+                    timestampstr = senxor_sensor.get_timestampstr()
+                    dataProcessor.save_pcd_pred(ptcloud, timestampstr, pointcloudoutputdest)
             # if args.inference == 1 or args.inference == 0:
             #     result_dict = dataProcessor.get_annotation(realsense_color_image_ori, realsense_depth_image_ori, annotator)
             #     if args.save == 1:
             #         dataProcessor.save_annotation(result_dict, timestampstr, annotationdest)
 
             timestamp = time.time()
-            
-            
-            
-            
-            
+
+
+
+
+
 
             # ================== for visualization of point clouds: 2 axes for inference and annotate, 1 axis for annotate, no axis for collection ============
             # the order should not be changed because we need to plot on two axes and obtain final image.
@@ -1035,11 +1081,11 @@ if __name__ == "__main__":
             mask = None
             # if args.inference != -1:
             #     mask = process_mask(result_dict)
-                
-                
-                
-                
-                
+
+
+
+
+
             # ================================== Prepare the images for visualization ==================================
             # visualize realsense
             if demo_cfg['visualize'] == 1:
@@ -1047,11 +1093,11 @@ if __name__ == "__main__":
                 cv2.imshow("Sensor Visuals", final_image)
 
 
-            
-            
+
+
             # ================================== check if we overrun ==================================
             time_lasting = time.time() - start_time
-            if framecnt%20: 
+            if framecnt%20:
                 print(f"framerate: {framecnt / time_lasting} Hz")
             # if time_lasting > collection_duration:
             #     break
