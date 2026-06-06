@@ -1,0 +1,18 @@
+# demo configuration used by data_collection_single.py
+
+collection_duration: 1200
+sleep_time: 0.0
+enable_MLX: 1
+mi08_process: 0
+mi16_process: 0
+save: 1
+# optional: if omitted, a timestamped folder under data/ will be used
+save_dest: data/testing
+
+exp_config_file: model3_m08
+weights: "weights/m08/model3_m08_thermo_pt_0819203728.pth"
+train: 0
+thermal_input: m08
+inference: 1
+use_old_plot: 1
+sensor_type: m08

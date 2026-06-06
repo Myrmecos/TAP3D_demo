@@ -334,7 +334,6 @@ class seekthermal:
                     if frame is not None:
                         return frame
         else:
-            #print(self.data_frame)
             return self.data_frame
         return None
 
@@ -469,7 +468,6 @@ def process_mask(result_dict):
     Make a mask on white background
     each human is assigned a color
     '''
-    print("DEBUG: PROCESSING MASK!!!!!!!")
     mask = None
     
     pcl_gt =  result_dict['depth_mask_person']
@@ -558,9 +556,9 @@ class DataProcessor:
         seek_camera_frame = np.flip(seek_camera_frame, 1)
         
         # postprocess
-        if args.mi08_process:
+        if demo_cfg['mi08_process']:
             senxor_temperature_map_m08 = senxor_postprocess_m.process_temperature_map(senxor_temperature_map_m08)
-        if args.mi16_process:
+        if demo_cfg['mi16_process']:
             senxor_temperature_map_m16 = senxor_postprocess_m.process_temperature_map(senxor_temperature_map_m16)
 
         return [realsense_depth_image,
@@ -595,10 +593,6 @@ class DataProcessor:
         np.save(depthpath, realsense_depth_image)
         np.save(thermal_path, thermal_map)
 
-            
-
-
-
     # process depth mask, to re-assign id or others
     def process_depth(self, depth_ori, no_id=False):
         '''
@@ -608,11 +602,11 @@ class DataProcessor:
         '''
         depth = depth_ori.cpu().numpy()
         depth, indicator, foreground_background_mask = depth[0, 0], depth[0, 1], depth[0, 2]
-        print(depth.shape, indicator.shape, foreground_background_mask.shape, "DEBUG: all, before removing small regions")
+        # print(depth.shape, indicator.shape, foreground_background_mask.shape, "DEBUG: all, before removing small regions")
         
         foreground_background_mask = remove_small_regions(foreground_background_mask)
-        print(depth.shape, indicator.shape, foreground_background_mask.shape, "DEBUG: all, after removing small regions")
-        depth[~foreground_background_mask] = 0
+        # print(depth.shape, indicator.shape, foreground_background_mask.shape, "DEBUG: all, after removing small regions")
+        # depth[~foreground_background_mask] = 0
         if no_id:
             indicator = foreground_background_mask
         else:
@@ -641,7 +635,7 @@ class DataProcessor:
         # # round indicator values to nearest int
         # indicator = np.round(indicator).astype(np.int32)
 
-        print(depth.shape, indicator.shape, foreground_background_mask.shape, "DEBUG: all, after removing small regions")
+        # print(depth.shape, indicator.shape, foreground_background_mask.shape, "DEBUG: all, after removing small regions")
         depth = torch.from_numpy(depth).float()  # (1, 1, H, W)
         indicator = torch.from_numpy(indicator).float()
         foreground_background_mask = torch.from_numpy(foreground_background_mask.copy())
@@ -677,7 +671,7 @@ class DataProcessor:
         
         # produce point cloud visualization for m08
         # ptcloud = t2p.thermal2ptcloud(thermal_images)
-        print("shape of thermal image: ", thermal_image.shape)
+        # print("shape of thermal image: ", thermal_image.shape)
         depth = t2p.thermal2depth(thermal_image)
         # depth: depth, nidicator, foreground_background_mask
         depth = self.process_depth(depth)
@@ -707,20 +701,19 @@ class DataProcessor:
         pkl.dump(result_dict, open(annotationpath, "wb"))
         
     def visualize_gt_pcd(self, fig, ax, result_dict, no_id_distinguish, use_old_plot = False):
-        print("#####visualize_gt_pcd: no_id-distinguish:", no_id_distinguish)
-        
+        # print("#####visualize_gt_pcd: no_id-distinguish:", no_id_distinguish)
+
         pcl_gt =  result_dict['point_cloud_person']
         pcl_dist = result_dict['depth_person']
         # sort pcl_gt's element according to pcl_dist
         indices = np.argsort(pcl_dist)
-        print(len(pcl_gt), len(indices), "DEBUG: length of pcl_gt and pcl_dist")
+        # print(len(pcl_gt), len(indices), "DEBUG: length of pcl_gt and pcl_dist")
         pcl_gt = [pcl_gt[i] for i in indices]
         
         if use_old_plot:
             ax.clear()
             if pcl_gt is not None:
                 # print("DEBUG: shape is:", pcl_gt.shape)
-                print("visualize_gt_pcd, before calling plot_3d_pcd:")
                 plot_3d_point_cloud(fig, ax, pcl_gt, no_id_distinguish=no_id_distinguish, regularSpacing=False)
             else:
                 plot_3d_point_cloud(fig, ax, np.zeros([[3, 1*42]]), no_id_distinguish=no_id_distinguish, regularSpacing=False)
@@ -764,9 +757,7 @@ class DataProcessor:
             image = plot_3d_point_cloud_new(ptcloud,  exp_config['max_num_persons'], exp_config['max_num_points'], camera_height=1.3, labels=labels1, colors=colors1, no_id_distinguish=no_id_distinguish)
             image = cv2.resize(image, (960, int(960 * image.shape[0] / image.shape[1])))
             put_text(image, "Prediction")
-        print("DEBUG: image shapeeeee:", image.shape)
         return image
-
 
     def prepare_sensor_visuals(self, realsense_color_image, realsense_depth_image, senxor_temperature_map_m08, senxor_temperature_map_m16, seek_camera_frame, point_cloud_image, mask, inference_mode):  
         # ================================== Prepare the images for visualization ==================================
@@ -838,7 +829,6 @@ class DataProcessor:
             final_image = interm1
         return final_image
             
-        
     def prepare_one_visual(self, realsense_color_image, realsense_depth_image, thermal, point_cloud_image):
         realsense_depth_image = cv2.applyColorMap(cv2.convertScaleAbs(realsense_depth_image, alpha=0.03), cv2.COLORMAP_JET)
         realsense_depth_image = cv2.resize(realsense_depth_image, (320, 240))
@@ -858,7 +848,9 @@ class DataProcessor:
         put_text(realsense_depth_image, "depth")
 
         interm2 = np.concatenate((realsense_color_image, realsense_depth_image, senxor_temperature_map_thermal), axis=1)
-        print(interm2.shape, point_cloud_image.shape)
+        if point_cloud_image is None:
+            return interm2
+        # print(interm2.shape, point_cloud_image.shape)
         interm1 = np.concatenate((interm2, point_cloud_image), axis=0)
         return interm1
 
@@ -866,60 +858,46 @@ class DataProcessor:
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--collection_duration", type=int, default=60, help="Duration to collect data, seconds")
-    parser.add_argument("--sleep_time", type=float, default=0, help="sleep time between each frame")
-    parser.add_argument("--enable_MLX", type=int, default=1, help="enable MLX or not")
-    parser.add_argument("--mi08_process", type=int, default=0, help="enable postprocessing for mi08 or not")
-    parser.add_argument("--mi16_process", type=int, default=0, help="enable postprocessing for mi16 or not")
-    parser.add_argument("--save", type=int, default=0, help="0 for not save, 1 for save")
-    timestampstr = time.strftime("%Y%m%d%H%M%S", time.localtime()) + f"{int((time.time()%1)*1e6):06d}"
-    parser.add_argument("--save_dest", type=str, default=f"data/{timestampstr}", help="destination for saving image, thermal and depth maps")
+    parser.add_argument("--demo-config", type=str, default="config/param.yaml", help="path to YAML file containing all demo parameters (replaces all CLI args)")
+    cli_args = parser.parse_args()
+    demo_cfg = yaml.safe_load(open(cli_args.demo_config))
 
-    parser.add_argument("--exp_config_file", type=str, help="Configuration YAML file of the experiment")
-    parser.add_argument("--weights", type=str, default=None, help="Path to .pth weights (optional)")
-    parser.add_argument("--train", type=int, default="0", help="0 is test, 1 is train")
-    parser.add_argument("--thermal_input", type=str, default="m08", help="choose from m08, m16 and seek")
-    parser.add_argument("--inference", type=int, default=1, help="whether to run inference or not, 1 for inference, 0 for no inference, -1 for no annotation and no inference")
-    parser.add_argument("--use_old_plot", type=int, default=0, help="whether to use old plot or not")
-    parser.add_argument("--sensor_type", type=str, default="m08", help="choose from m08, m16 and seek")
-    args = parser.parse_args()
-    
-    exp_config_file_name = args.exp_config_file + '.yaml'
-    exp_config_file_name_full = "exp_configs/" + args.exp_config_file + '.yaml'
+    exp_config_file_name = demo_cfg['exp_config_file'] + '.yaml'
+    exp_config_file_name_full = "exp_configs/" + demo_cfg['exp_config_file'] + '.yaml'
     exp_config = yaml.safe_load(open(exp_config_file_name_full))
-    
-    t2p = M08ToPtcloud('exp_configs', exp_config_file_name, args.weights)
 
-    imgdest = os.path.join(args.save_dest, "realsense_color")
-    depthdest = os.path.join(args.save_dest, "realsense_depth")
-    thermal_dest = os.path.join(args.save_dest, args.thermal_input)
-    pointcloudoutputdest = os.path.join(args.save_dest, "pointcloud_output")
-    annotationdest = os.path.join(args.save_dest, "annotation")
-    
-    thermal_input = args.thermal_input
+    t2p = M08ToPtcloud('exp_configs', exp_config_file_name, demo_cfg['weights'])
+
+    imgdest = os.path.join(demo_cfg['save_dest'], "realsense_color")
+    depthdest = os.path.join(demo_cfg['save_dest'], "realsense_depth")
+    thermal_dest = os.path.join(demo_cfg['save_dest'], demo_cfg['thermal_input'])
+    pointcloudoutputdest = os.path.join(demo_cfg['save_dest'], "pointcloud_output")
+    annotationdest = os.path.join(demo_cfg['save_dest'], "annotation")
+
+    thermal_input = demo_cfg['thermal_input']
     sensor_name = "seek_thermal" if thermal_input == "seek" else f"senxor_{thermal_input}"
     annotator = DataAnnotate(sensor_name)
-    
-    if args.save == 1 and not os.path.exists(args.save_dest):
-        os.mkdir(args.save_dest)
+
+    if demo_cfg['save'] == 1 and not os.path.exists(demo_cfg['save_dest']):
+        os.mkdir(demo_cfg['save_dest'])
         os.mkdir(imgdest)
         os.mkdir(depthdest)
         os.mkdir(thermal_dest)
         os.mkdir(pointcloudoutputdest)
         os.mkdir(annotationdest)
 
-    if args.mi08_process or args.mi16_process:
+    if demo_cfg['mi08_process'] or demo_cfg['mi16_process']:
         senxor_postprocess_m = senxor_postprocess()
 
     realsense_sensor = realsense()
-    if args.sensor_type == "m08" or args.sensor_type == "m16":
+    if demo_cfg['sensor_type'] == "m08" or demo_cfg['sensor_type'] == "m16":
         senxor_sensor = senxor_16(sensor_port="/dev/ttyACM0") #beware! This may get flipped
     num_rows_senxor, num_cols_senxor = senxor_sensor.get_temperature_map_shape()
     # if num_rows_senxor != 62 or num_cols_senxor != 80:
     #     senxor_sensor = senxor_16(sensor_port="/dev/ttyACM1") #beware! This may get flipped
 
     # seek
-    if args.sensor_type == "seek":
+    if demo_cfg['sensor_type'] == "seek":
         seek_sensor = seekthermal(data_format="others")
 
     # buffer for synchronizing different sensors
@@ -936,8 +914,8 @@ if __name__ == "__main__":
     framecnt = 0   # the number of the received frames
     saved_frame_cnt = 0  # the number of the saved frames
     start_time = time.time()
-    collection_duration = args.collection_duration
-    sleep_time = args.sleep_time   # sleep time between each frame, control the collecting speed
+    collection_duration = demo_cfg['collection_duration']
+    sleep_time = demo_cfg['sleep_time']  # sleep time between each frame, control the collecting speed
     last_collect_time = time.time()
 
     # preparation for plotting
@@ -959,18 +937,18 @@ if __name__ == "__main__":
         framecnt+=1
         
         # obtain data from sensors
-        
-        
-        if args.sensor_type == "m08" or args.sensor_type == "m16":
+
+
+        if demo_cfg['sensor_type'] == "m08" or demo_cfg['sensor_type'] == "m16":
             temp_ori, header1 = senxor_sensor.get_temperature_map()
             temp_ori = temp_ori.reshape(num_cols_senxor, num_rows_senxor)
             temp_ori = np.flip(temp_ori, 0)
             
-            print("Shape of the thermal map:", temp_ori.shape)
+            # print("Shape of the thermal map:", temp_ori.shape)
 
         realsense_depth_image_ori, realsense_color_image_ori = realsense_sensor.get_frame()
             
-        if args.sensor_type == "seek":
+        if demo_cfg['sensor_type'] == "seek":
             seek_camera_frame_ori = copy.deepcopy(seek_sensor.get_frame())
             seek_camera_buffer.add(seek_camera_frame_ori)
             temp_ori= seek_camera_buffer.get()
@@ -1000,7 +978,7 @@ if __name__ == "__main__":
             timestampstr = time.strftime("%Y%m%d%H%M%S", time.localtime()) + f"{int((time.time()%1)*1e6):06d}"
             npyname = timestampstr + ".npy"
             pklname = timestampstr + ".pkl"
-            if args.save == 1:
+            if demo_cfg['save'] == 1:
                 dataProcessor.save_raw_data(realsense_depth_image_ori, realsense_color_image_ori, thermal_dest, timestampstr)
 
 
@@ -1012,9 +990,9 @@ if __name__ == "__main__":
 
 
             # ================================== Inference: get the predicted point clouds ================================================
-            if args.inference == 1:
+            if demo_cfg['inference'] == 1:
                 ptcloud = dataProcessor.get_point_clouds_pred(t2p, temp_ori)
-                if args.save == 1:
+                if demo_cfg['save'] == 1:
                     dataProcessor.save_pcd_pred(ptcloud, timestampstr, pointcloudoutputdest)
             # if args.inference == 1 or args.inference == 0:
             #     result_dict = dataProcessor.get_annotation(realsense_color_image_ori, realsense_depth_image_ori, annotator)
@@ -1033,13 +1011,10 @@ if __name__ == "__main__":
             pcd_image = None
             # if args.inference == 1 or args.inference == 0:
                 # pcd_image = dataProcessor.visualize_gt_pcd(fig, ax, result_dict, use_old_plot=args.use_old_plot, no_id_distinguish=True)
-            if args.inference == 1:
-                print(ptcloud.shape, "DDDEEEBBBUUUGGG~~~~~~~~~~~~~~~~")
-                print("~~~~~~~use old plot:", args.use_old_plot)
-                if args.use_old_plot:
+            if demo_cfg['inference'] == 1:
+                if demo_cfg['use_old_plot']:
                     pcd_image = dataProcessor.visualize_pred_pcd(fig, ax, ptcloud, exp_config, use_old_plot=True, no_id_distinguish=False)
                 else:
-                    # print("DEBUG: shape of idx0:", pcd_image.shape)
                     pcd_image = dataProcessor.visualize_pred_pcd(fig, ax, ptcloud, exp_config, use_old_plot=False, no_id_distinguish=False)
 
             # # visualize mask
