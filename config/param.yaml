@@ -15,6 +15,7 @@ weights: "weights/m08/model3_m08_thermo_pt_0819203728.pth"
 train: 0
 thermal_input: m08
 inference: 1
+postprocess: 1
 use_old_plot: 1
 
 visualize: 1

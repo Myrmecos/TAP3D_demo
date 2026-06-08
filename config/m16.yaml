@@ -15,6 +15,7 @@ weights: "weights/m16/model3_m16_thermo_pt_0820152400.pth"
 train: 0
 thermal_input: m16
 inference: 1
+postprocess: 1
 use_old_plot: 1
 
 visualize: 1

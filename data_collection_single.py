@@ -27,6 +27,7 @@ import pickle as pkl
 from plot import plot_3d_point_cloud_new, remove_small_regions, mark_connected_components
 cnt = 0
 logging.getLogger().setLevel(logging.CRITICAL)
+from sklearn.neighbors import NearestNeighbors
 # sys.path.append("/home/zx/Desktop/zx/DeepTadarDataCollect-ubuntu-data-collect/")
 
 colors = ['red', 'blue', 'green', 'orange', 'purple', 'gray']
@@ -727,6 +728,35 @@ class DataProcessor:
         result_dict = annotator.forward(realsense_color_image, realsense_depth_image)
         return result_dict
 
+    # ========================  postprocessing ===================================
+    def sos_filter(self, points, k = 100, z = 0.3):
+        """Statistical outlier removal
+        Keeps points whose mean KNN distance is within z std from the mean"""
+        print("filtering")
+        points = np.asarray(points, dtype=np.float32)
+        n_samples = points.shape[0]
+        if n_samples < 10:
+            keep = np.ones(n_samples, dtype=bool)
+            return points, keep
+        
+        # adapt k to current sample count so sklearn constraint holds:
+        # n_neighbors <= n_samples_fit
+        n_neighbors = max(10, min(int(k) + 1, n_samples))
+        nn = NearestNeighbors(n_neighbors=n_neighbors, algorithm='auto').fit(points)
+        dists, _ = nn.kneighbors(points)
+        
+        if dists.shape[1] <= 1:
+            keep = np.ones(n_samples, dtype=bool)
+            return points, keep
+        mean_knn = dists[:, 1:].mean(axis=1)  # exclude the point itself at index 0
+        mu = mean_knn.mean()
+        sigma = mean_knn.std()
+        keep = mean_knn < mu + z * sigma
+        
+        if keep.sum() < n_samples:
+            print("keep.sum() < num_points:", keep.sum())
+        return points[keep], keep
+    # ======================== saving results ===============================================
     def save_pcd_pred(self, ptcloud, timestampstr, pointcloudoutputdest):
         # Inference: save predicted point clouds ============================================================
         npyname = timestampstr + ".npy"
@@ -1033,8 +1063,6 @@ if __name__ == "__main__":
         if temp_ori is None:
             continue
         else:
-
-
             # ================================== saving the raw data ==================================
             # preparing file name
             timestampstr = time.strftime("%Y%m%d%H%M%S", time.localtime()) + f"{int((time.time()%1)*1e6):06d}"
@@ -1053,6 +1081,8 @@ if __name__ == "__main__":
             # ================================== Inference: get the predicted point clouds ================================================
             if demo_cfg['inference'] == 1:
                 ptcloud = dataProcessor.get_point_clouds_pred(t2p, temp_ori)
+                if demo_cfg['postprocess'] == 1:
+                    ptcloud, _ = dataProcessor.sos_filter(ptcloud, k=100, z=0.3)
                 if demo_cfg['save'] == 1:
                     dataProcessor.save_pcd_pred(ptcloud, timestampstr, pointcloudoutputdest)
                 if demo_cfg['use_recorded_data'] == 1:
