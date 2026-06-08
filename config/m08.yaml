@@ -20,5 +20,5 @@ use_old_plot: 1
 
 visualize: 1
 
-use_recorded_data: 1
+use_recorded_data: 0
 recorded_data_path: /home/zx/Desktop/zx/TAP3D_demo/data/testing

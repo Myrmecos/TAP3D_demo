@@ -729,33 +729,77 @@ class DataProcessor:
         return result_dict
 
     # ========================  postprocessing ===================================
-    def sos_filter(self, points, k = 100, z = 0.3):
+    def sos_filter(self, points, k = 100, z = 0.3, exp_config = None):
         """Statistical outlier removal
         Keeps points whose mean KNN distance is within z std from the mean"""
-        print("filtering")
-        points = np.asarray(points, dtype=np.float32)
-        n_samples = points.shape[0]
-        if n_samples < 10:
-            keep = np.ones(n_samples, dtype=bool)
-            return points, keep
+        # print("filtering")
+        # points = np.asarray(points, dtype=np.float32).T
+        # print("shape of pts:", points.shape)
+        # n_samples = points.shape[0]
+        # if n_samples < 10:
+        #     keep = np.ones(n_samples, dtype=bool)
+        #     points = np.reshape(points, (3, -1))
+        #     return points, keep
         
-        # adapt k to current sample count so sklearn constraint holds:
-        # n_neighbors <= n_samples_fit
-        n_neighbors = max(10, min(int(k) + 1, n_samples))
-        nn = NearestNeighbors(n_neighbors=n_neighbors, algorithm='auto').fit(points)
-        dists, _ = nn.kneighbors(points)
+        # # adapt k to current sample count so sklearn constraint holds:
+        # # n_neighbors <= n_samples_fit
+        # n_neighbors = max(10, min(int(k) + 1, n_samples))
+        # nn = NearestNeighbors(n_neighbors=n_neighbors, algorithm='auto').fit(points)
+        # dists, _ = nn.kneighbors(points)
         
-        if dists.shape[1] <= 1:
-            keep = np.ones(n_samples, dtype=bool)
-            return points, keep
-        mean_knn = dists[:, 1:].mean(axis=1)  # exclude the point itself at index 0
-        mu = mean_knn.mean()
-        sigma = mean_knn.std()
-        keep = mean_knn < mu + z * sigma
+        # if dists.shape[1] <= 1:
+        #     keep = np.ones(n_samples, dtype=bool)
+        #     points = np.reshape(points, (3, -1))
+        #     return points, keep
+        # mean_knn = dists[:, 1:].mean(axis=1)  # exclude the point itself at index 0
+        # mu = mean_knn.mean()
+        # sigma = mean_knn.std()
+        # keep = mean_knn < mu + z * sigma
         
-        if keep.sum() < n_samples:
-            print("keep.sum() < num_points:", keep.sum())
-        return points[keep], keep
+        # if keep.sum() < n_samples:
+        #     print("keep.sum() < num_points:", keep.sum())
+        # # make points not to keep be 0s
+        # points_new = points
+        # points_new[~keep] = 0
+        
+        # # restore indicator pts
+        # person_idx = np.array(range(exp_config['max_num_persons']))
+        # indicator_idx = (person_idx + 1)*exp_config['max_num_points'] - 1
+        # points_new[indicator_idx] = points[indicator_idx]
+        
+        # points_new = points_new.T
+        # return points_new, keep
+        points = points.T
+        # points_ori = points.copy()
+        points_per_person = exp_config['max_num_points']+1 # last one is indicator point
+        num_persons = exp_config['max_num_persons']
+        for person_idx in range(num_persons):
+            start_idx = person_idx*points_per_person
+            end_idx = start_idx + points_per_person - 1
+            
+            # if person_idx == 0:
+            #     # print number of pts that are 0s
+            #     print("number of points that are 0s:", (points[start_idx:end_idx, :] == 0).sum())
+            
+            person_points = points[start_idx:end_idx, :]
+            
+            # do not include points that are  0, 0, 0 for KNN
+            person_points = person_points[~np.all(person_points == 0, axis=1)]
+            if len(person_points) == 0:
+                continue
+            nn = NearestNeighbors(n_neighbors=min(k+1, len(person_points)), algorithm='auto').fit(person_points)
+            dists, _ = nn.kneighbors(person_points)
+            mean_knn = dists[:, 1:].mean(axis=1)  # exclude the point itself at index 0
+            mu = mean_knn.mean()
+            sigma = mean_knn.std()
+            keep = mean_knn < mu + z * sigma
+            person_points = person_points[keep]
+
+            # print("number of pts removed:", (~keep).sum())
+            points[start_idx:end_idx, :] = 0
+            points[start_idx:start_idx + person_points.shape[0]] = person_points
+        return points.T
+
     # ======================== saving results ===============================================
     def save_pcd_pred(self, ptcloud, timestampstr, pointcloudoutputdest):
         # Inference: save predicted point clouds ============================================================
@@ -1082,7 +1126,9 @@ if __name__ == "__main__":
             if demo_cfg['inference'] == 1:
                 ptcloud = dataProcessor.get_point_clouds_pred(t2p, temp_ori)
                 if demo_cfg['postprocess'] == 1:
-                    ptcloud, _ = dataProcessor.sos_filter(ptcloud, k=100, z=0.3)
+                    print("shape before filtering:", ptcloud.shape)
+                    ptcloud = dataProcessor.sos_filter(ptcloud, k=100, z=0.3, exp_config=exp_config)
+                    print("shape after filtering:", ptcloud.shape)
                 if demo_cfg['save'] == 1:
                     dataProcessor.save_pcd_pred(ptcloud, timestampstr, pointcloudoutputdest)
                 if demo_cfg['use_recorded_data'] == 1:
