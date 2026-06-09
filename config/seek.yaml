@@ -6,19 +6,19 @@ enable_MLX: 1
 enable_realsense: 1
 mi08_process: 0
 mi16_process: 0
-save: 1
+save: 0
 # optional: if omitted, a timestamped folder under data/ will be used
-save_dest: MoreData/t28_m08
+save_dest: data/testing
 
-exp_config_file: model3_m16
-weights: "weights/m16/model3_m16_thermo_pt_0820152400.pth"
+exp_config_file: model3_seekthermal
+weights: weights/seekthermal/model3_seekthermal_thermo_pt_0820225255.pth
 train: 0
-thermal_input: m16
+thermal_input: seek
 inference: 1
-postprocess: 1
+postprocess: 0
 use_old_plot: 1
 
 visualize: 1
 
 use_recorded_data: 0
-recorded_data_path: /home/zx/Desktop/zx/TAP3D_demo/data/testing1
+recorded_data_path: MoreData/t20_m08_2

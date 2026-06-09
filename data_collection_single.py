@@ -1031,12 +1031,14 @@ if __name__ == "__main__":
         # thermal, if needed
         if demo_cfg['thermal_input'] == "m08" or demo_cfg['thermal_input'] == "m16":
             senxor_sensor = senxor_16(sensor_port="/dev/ttyACM0") #beware! This may get flipped
-        num_rows_senxor, num_cols_senxor = senxor_sensor.get_temperature_map_shape()
+            num_rows_senxor, num_cols_senxor = senxor_sensor.get_temperature_map_shape()
+            print("DEBUG: shape of input thermal:", num_cols_senxor, num_rows_senxor)
+            
         # if num_rows_senxor != 62 or num_cols_senxor != 80:
         #     senxor_sensor = senxor_16(sensor_port="/dev/ttyACM1") #beware! This may get flipped
         # seek, if needed
-        # if demo_cfg['thermal_input'] == "seek":
-        #     seek_sensor = seekthermal(data_format="others")
+        if demo_cfg['thermal_input'] == "seek":
+            seek_sensor = seekthermal(data_format="others")
 
     # buffer for synchronizing different sensors
     # since some sensors get data slower
@@ -1074,6 +1076,9 @@ if __name__ == "__main__":
             # print("DEBUG: temp_ori is", temp_ori)
             if not demo_cfg['use_recorded_data']:
                 temp_ori = np.flip(temp_ori, 0)
+            
+            avg_temp = np.median(temp_ori)
+            print("median temp: ", avg_temp)
 
             # print("Shape of the thermal map:", temp_ori.shape)
 
@@ -1087,6 +1092,8 @@ if __name__ == "__main__":
             seek_camera_frame_ori = copy.deepcopy(seek_sensor.get_frame())
             seek_camera_buffer.add(seek_camera_frame_ori)
             temp_ori= seek_camera_buffer.get()
+            if temp_ori is None:
+                continue
             if not demo_cfg['use_recorded_data']:
                 temp_ori = np.flip(temp_ori, 0)
                 temp_ori = np.flip(temp_ori, 1)
@@ -1127,10 +1134,11 @@ if __name__ == "__main__":
                 ptcloud = dataProcessor.get_point_clouds_pred(t2p, temp_ori)
                 if demo_cfg['postprocess'] == 1:
                     print("shape before filtering:", ptcloud.shape)
-                    ptcloud = dataProcessor.sos_filter(ptcloud, k=100, z=0.3, exp_config=exp_config)
+                    ptcloud = dataProcessor.sos_filter(ptcloud, k=100, z=1.5, exp_config=exp_config)
                     print("shape after filtering:", ptcloud.shape)
                 if demo_cfg['save'] == 1:
-                    dataProcessor.save_pcd_pred(ptcloud, timestampstr, pointcloudoutputdest)
+                    # dataProcessor.save_pcd_pred(ptcloud, timestampstr, pointcloudoutputdest)
+                    pass
                 if demo_cfg['use_recorded_data'] == 1:
                     timestampstr = senxor_sensor.get_timestampstr()
                     dataProcessor.save_pcd_pred(ptcloud, timestampstr, pointcloudoutputdest)
